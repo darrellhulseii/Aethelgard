@@ -348,7 +348,7 @@
     <div id="title-screen">
         <div class="stars"></div>
         <div class="t-inner">
-            <div class="t-kicker">A STORY RPG</div>
+            <div class="t-kicker">A PHILOSOPHICAL JOURNEY</div>
             <div class="t-title">AETHELGARD</div>
             <div class="t-sub">The Search for Meaning</div>
             <div class="t-rule"></div>
@@ -2872,9 +2872,9 @@ const NPC_SCRIPTS = {
             pg("The night he died he left a journal with Librarian Anselm at the Sylvan Hermitage. Take the shrine road through the forest and keep going south-west."),
             pg("And Kaelen? Aldric used to say anyone set on revenge should dig two graves. Think about that before you knock on the Obsidian Gate."),
             pg("One more thing. Why do you think this place is called the Neon Aegis? Your father's courier gear sleeps in my cellar. AEGIS. A walking machine he rebuilt from Raider scrap."),
-            pg("It's yours now. Ride it to cross the wilds fast, and call it down in battle when things get ugly. Keep it fed: Fuel Cells, or a night's rest."),
-            { s: 'GEAR', t: "Kaelen obtained the gear AEGIS! [G] (or the G button) to ride it on the overworld. In battle, [G] boards it: damage x1.8, +2 AP and its own GEAR arts. Each ally brings their own gear when they join." }
-        ], done: () => { grantGear('kaelen'); setChapter(1); } };
+            pg("It's yours now. Ride it to cross the wilds fast, and call it down in battle when things get ugly. Keep it fed: Fuel Cells, or a night's rest. Come on, it's in the hangar under the bar.")
+        ], done: () => { grantGear('kaelen'); setChapter(1);
+            hangarScene('kaelen').then(() => playDialogue([{ s: 'GEAR', t: "Kaelen obtained the gear AEGIS! [G] (or the G button) to ride it on the overworld. In battle, [G] boards it: damage x1.8, +2 AP and its own GEAR arts. Each ally brings their own gear when they join." }])); } };
         return { pages: [pg(story.ch >= 4 ? "Drinks are on the house tonight. The Raiders are gone. Aldric would've liked that." : "Anselm has the journal. Go on. And eat something first."),
             pg("If you're fighting the Scouts in the crags: leftover AP isn't wasted. It links into your next turn, up to three extra.")] };
     },
@@ -3083,6 +3083,8 @@ function exitBuilding() {
 }
 
 function gateInteract() {
+    if (story.dark) { showDialogue(party.some(m => m.key === 'vanguard') ? "The sentries salute Vanguard as you pass. The barrier hums, waiting for orders." : "The sentries salute. They know who you serve now.", 'OBSIDIAN GATE'); return; }
+    if (story.fallen && !story.warlordDown && story.ch >= 3) { heirsVanguardFight(); return; }
     if (story.warlordDown) { showDialogue("The gate stands open. The base is silent; the Raiders are gone.", 'OBSIDIAN GATE'); return; }
     const i = story.insights, ck = b => b ? 'found' : 'missing';
     if (story.ch < 3) {
@@ -3563,7 +3565,8 @@ function buildGearRig(key) {
     const ICE = '#dff6ff', ICED = '#8fd4f0';
     // skeleton: hips, torso, head, two arms with a hand socket each, two legs
     const sk = { kaelen: [4.2, 1.0, 2.3, 7.0, 8.6, 4.2], lira: [4.6, 0.8, 1.4, 7.8, 9.0, 3.4], cassius: [4.0, 1.1, 2.7, 7.0, 8.9, 4.2],
-                 maren: [3.6, 0, 2.4, 5.8, 7.4, 3.0], nils: [4.2, 1.3, 3.2, 7.6, 9.2, 4.8], silver: [4.4, 0.8, 1.9, 7.3, 9.0, 3.3] }[key];
+                 maren: [3.6, 0, 2.4, 5.8, 7.4, 3.0], nils: [4.2, 1.3, 3.2, 7.6, 9.2, 4.8], silver: [4.4, 0.8, 1.9, 7.3, 9.0, 3.3],
+                 vanguard: [4.4, 1.3, 3.2, 7.8, 9.4, 4.6], beauregard: [4.4, 0.9, 2.0, 7.4, 8.9, 3.8] }[key];
     const [hipY, legX, shX, shY, headY, hand] = sk;
     rig.hipY = hipY;
     const torso = rig.torso = grp(root, 0, hipY, 0);
@@ -3654,6 +3657,30 @@ function buildGearRig(key) {
             add(a, ic, iceM); });
         add(weapon, [[cy(0.2, 0.2, 7.5, 6, 0, 1.6, 0), '#6b4a2a'], [bx(0.4, 0.6, 0.6, 0, 5.2, 0), K]]);
         add(weapon, [[bx(0.3, 3.0, 2.0, 0, 4.6, 1.1), ICE], [cn(0.6, 1.2, 4, 0, 4.6, 2.5, Math.PI / 2), ICED], [cn(0.35, 1.4, 4, 0, 4.8, -1.0, -Math.PI / 2), ICE], [cn(0.2, 1.2, 4, 0, 6.0, 0, 0), ICE]], iceM);
+    } else if (key === 'vanguard') {  // OBSIDIAN: horned warlord frame, cape, reactor-cannon arm
+        rig.style = 'spear';
+        legs(() => [[bx(1.8, 2.3, 1.8, 0, -1.1, 0), SD], [bx(2.0, 2.1, 2.0, 0, -3.1, 0), S], [bx(2.4, 0.8, 2.9, 0, -4.0, 0.3), K], [cn(0.3, 1.2, 4, 0, -2.2, 1.1, Math.PI / 2), RD]]);
+        add(torso, [[bx(3.6, 1.3, 2.6, 0, 0.6, 0), SD], [bx(5.2, 4.0, 3.2, 0, 2.9, 0), S], [bx(4.2, 2.2, 0.3, 0, 3.3, 1.65), SL], [bx(5.3, 0.3, 3.3, 0, 1.2, 0), Y],
+            [bx(4.8, 6.4, 0.25, 0, 0.6, -1.85, 0.12), '#5a1a1a'], [cn(0.35, 1.6, 4, 0, 5.4, -1.3, -0.4), RD], [cn(0.3, 1.3, 4, 1.2, 5.1, -1.3, -0.4), SD], [cn(0.3, 1.3, 4, -1.2, 5.1, -1.3, -0.4), SD]]);
+        add(torso, [[sp(0.6, 0, 3.0, 1.7), RD], [bx(3.8, 0.12, 0.1, 0, 2.0, 1.66), RD]], glowM);
+        add(head, [[bx(2.1, 2.0, 2.1, 0, 0, 0), S], [bx(2.2, 0.6, 2.2, 0, -0.75, 0.05), SD], [cn(0.35, 2.4, 6, 0.95, 1.5, 0, 0, 0, -0.55), Y], [cn(0.35, 2.4, 6, -0.95, 1.5, 0, 0, 0, 0.55), Y]]);
+        add(head, [[bx(1.6, 0.2, 0.1, 0, 0.15, 1.06), RD]], glowM);
+        arms(s => [[bx(2.6, 1.8, 2.6, 0.3 * s, 0.2, 0), SL], [cn(0.35, 1.6, 4, 0.9 * s, 1.6, 0, 0, 0, -0.5 * s), RD], [bx(1.4, 2.2, 1.4, 0, -1.6, 0), SD], [bx(1.8, 2.0, 1.8, 0, -3.4, 0), S]]);
+        add(offhand, [[bx(1.9, 1.3, 1.9, 0, -0.3, 0), K]]);
+        add(weapon, [[bx(1.7, 2.0, 1.7, 0, 0, 0), S], [cy(0.7, 0.8, 6, 10, 0, 3.0, 0), SD], [cy(0.95, 0.95, 0.7, 10, 0, 6.2, 0), K], [bx(0.3, 4, 0.3, 0.7, 2.6, 0), Y]]);
+        add(weapon, [[cy(0.55, 0.55, 0.1, 10, 0, 6.6, 0), RD]], glowM);
+    } else if (key === 'beauregard') { // SCARLET: lean duelist frame, hooded helm, long red scarf, saber
+        rig.style = 'sword';
+        legs(() => [[bx(1.0, 2.2, 1.1, 0, -1.0, 0), SD], [cy(0.65, 0.4, 2.4, 6, 0, -3.1, 0), S], [bx(0.9, 0.4, 1.9, 0, -4.4, 0.3), K]]);
+        add(torso, [[cy(0.7, 0.9, 1.1, 8, 0, 0.6, 0), K], [bx(3.0, 2.8, 1.8, 0, 2.4, 0), S], [bx(2.4, 1.2, 0.3, 0, 2.8, 0.95), SL], [cy(1.05, 1.1, 0.7, 10, 0, 4.0, 0), Y],
+            [bx(0.7, 0.18, 3.6, 0.5, 3.9, -2.0, -0.35), Y], [bx(0.6, 0.18, 3.0, -0.3, 3.7, -2.4, -0.55), Y]]);
+        add(torso, [[sp(0.3, 0, 2.5, 1.0), RD]], glowM);
+        add(head, [[cn(1.0, 2.4, 6, 0, 0.5, 0), SD], [bx(1.3, 0.8, 1.2, 0, -0.2, 0.1), K]]);
+        add(head, [[bx(0.25, 0.12, 0.1, 0.3, 0.05, 0.72), RD], [bx(0.25, 0.12, 0.1, -0.3, 0.05, 0.72), RD]], glowM);
+        arms(() => [[cn(0.6, 1.0, 6, 0, 0.3, 0), SL], [bx(0.7, 1.7, 0.7, 0, -1.0, 0), SD], [bx(0.8, 1.6, 0.8, 0, -2.7, 0), S]]);
+        add(weapon, [[cy(0.13, 0.13, 1.0, 6, 0, 0, 0), K], [bx(1.3, 0.22, 0.4, 0, 0.55, 0), Y], [bx(0.4, 5.6, 0.12, 0.08, 3.4, 0, 0, 0, -0.05), '#c8ccd8']]);
+        add(weapon, [[bx(0.1, 5.2, 0.16, -0.1, 3.4, 0, 0, 0, -0.05), RD]], glowM);
+        add(offhand, [[bx(0.3, 1.6, 0.1, 0, -0.4, 0.3), '#c8ccd8']]);
     } else {                          // COMET: orbital gear with halo ring, crescent blades, thrusters
         rig.style = 'blades'; rig.hover = true;
         legs(() => [[bx(0.9, 2.0, 1.0, 0, -1.0, 0), SD], [cy(0.6, 0.3, 2.4, 6, 0, -3.2, 0), S], [bx(0.8, 0.4, 1.6, 0, -4.4, 0.2), K]]);
@@ -3937,6 +3964,7 @@ function traitHit(f, t, raw, pierce) {
 }
 function hurtFoe(f, d, color, size) {
     if (!f || f.hp <= 0 || d <= 0) return;
+    d = d * 400 / (400 + (f.def || 0));            // defense: diminishing returns (DEF 30 = -7%, DEF 600 = -60%)
     f.hp = Math.max(0, f.hp - Math.round(d));
     f.flashUntil = performance.now() + 120;
     floatText(String(Math.round(d)), color || '#ffffff', FPOS(f), size || 1.3);
@@ -4302,11 +4330,11 @@ const battleMarks = (() => {
 function foeFromKey(key, slot) {
     const lv = playerStats.lv;
     let E;
-    if (ENEMY_TYPES[key]) E = Object.assign({ tex: key === 'warlord' ? MECHA : beauTex() }, ENEMY_TYPES[key]);
+    if (ENEMY_TYPES[key]) E = Object.assign({ tex: key === 'warlord' ? MECHA : ENEMY_TYPES[key].D ? humanFoeTex(key, ENEMY_TYPES[key].D) : beauTex(), def: key === 'warlord' ? 40 : 30 }, ENEMY_TYPES[key]);
     else {
         const Bk = BESTIARY[key], sh = (1 + 0.12 * (lv - 1)) * (1 + 0.15 * party.length), sd = 1 + 0.08 * (lv - 1);
         E = { name: Bk.name, hp: Math.round(Bk.hp * sh), dmg: [Bk.dmg[0] * sd, Bk.dmg[1] * sd], size: Bk.size || (Bk.body === 'human' ? 0.72 : 1), tint: 0xffffff, boss: false,
-            trait: Bk.trait, tex: Bk.body === 'human' ? humanFoeTex(key, Bk.D) : monsterTex(key), fly: !!Bk.fly, xp: Math.round(Bk.xp * (1 + 0.1 * (lv - 1))) };
+            trait: Bk.trait, def: Bk.def !== undefined ? Bk.def : Bk.trait === 'armor' ? 30 : Bk.body === 'golem' ? 24 : 12, tex: Bk.body === 'human' ? humanFoeTex(key, Bk.D) : monsterTex(key), fly: !!Bk.fly, xp: Math.round(Bk.xp * (1 + 0.1 * (lv - 1))) };
     }
     E.dmg = [E.dmg[0], E.dmg[1]];
     return Object.assign(E, { key: key, maxHp: E.hp, slot: slot, actor: enemyPool[slot], stunned: false, charged: false, mark: 0, flashUntil: 0, poseUntil: 0, turns: 0, dead: false,
@@ -4357,11 +4385,12 @@ function startCombat(keyOrList, biome, opts) {
     $('location-name').innerText = bossKey === 'warlord' ? 'FINAL BATTLE: VANGUARD' : bossKey ? `BOSS: ${foes[0].name}` : `BATTLE: ${foes.map(f => f.name).join(', ')}`;
     showDialogue(bossKey === 'warlord' ? "FINAL BATTLE: VANGUARD and his escorts! Remember the Hermit: he who fights with monsters should be careful lest he thereby become a monster."
         : bossKey === 'beauregard' ? "BOSS: BEAUREGARD and two raiders! He strikes twice every turn. Guard, heal, and make your deathblows count."
+        : bossKey && ENEMY_TYPES[bossKey].defender ? `DEFENDER: ${foes[0].name} with the townsfolk! DEF ${foes[0].def}: every hit lands at 40%. ${TRAIT_TEXT[foes[0].trait]}.`
         : `${foes.length > 1 ? foes.length + ' foes' : 'A wild ' + foes[0].name} ${foes.length > 1 ? 'appear' : 'appears'}! Each ally takes a turn. Tap an enemy (or 1-3) to target it.`);
     startRound();
 }
 function randomEncounter(reg) {
-    const list = BIOME_ENEMIES[reg].filter(k => !(k === 'mecha_scout' && story.warlordDown));
+    const list = story.dark ? VILLAGER_FOES : BIOME_ENEMIES[reg].filter(k => !(k === 'mecha_scout' && story.warlordDown));
     const r = Math.random(), n = r < 0.42 ? 1 : r < 0.82 ? 2 : 3;
     const keys = [];
     for (let i = 0; i < n; i++) keys.push(list[Math.floor(Math.random() * list.length)]);
@@ -4606,6 +4635,7 @@ function joinAlly(n) {
 
 
 function warlordAftermath() {
+    if (story.fallen) { heirsAftermath(); return; }
     story.warlordDown = true;
     BASE_GATE.mesh.visible = false; BASE_GATE.box.on = false;
     sentries.forEach(a => { a.mesh.visible = false; a.blob.visible = false; a.col.on = false; });
@@ -5075,6 +5105,7 @@ function setLeaderSprite(key) {
     setActorFrame(hero);
 }
 function setControl(keys) {
+    keys = keys || story.heirs || null;
     if (RIDE.on) toggleRide(false, true);
     CONTROL = keys ? { keys: keys } : null;
     setLeaderSprite(keys ? keys[0] : 'kaelen');
@@ -5321,7 +5352,7 @@ async function blackoutFinale() {
     story.gold += 300;
     leaveZoneNow();
     playDialogue(ALLY_STORY.silver.map(t => ({ s: 'SILVER', t: t })).concat([
-        { s: 'PARTY', t: `SILVER JOINS THE PARTY! ${ALLY_DEFS.silver.title}. Twin moon blades, gear COMET, and starlight arts. ${S.active ? '' : 'Your active party is full: swap her in from the PARTY tab.'} (+300 G from Chief Avery)` }]));
+        { s: 'PARTY', t: `SILVER JOINS THE PARTY! ${ALLY_DEFS.silver.title}. Twin moon blades, gear COMET, and starlight arts. ${S.active ? '' : 'Your active party is full: swap her in from the PARTY tab.'} (+300 G from Chief Avery)` }]), () => hangarScene('silver'));
 }
 Object.assign(ART_ANIMS, {
     'MOONLIGHT WALTZ'(imp) {
@@ -5353,19 +5384,21 @@ Object.assign(ART_ANIMS, {
 
 // ---------- the rocket ----------
 function rocketInteract() {
+    if (story.rocketLost) { showDialogue("Only a scorched launch pad remains. Professor Orrin hasn't spoken since the fifth flight.", 'SKYREACH'); return; }
     const q = Q.starbound;
     if (q.state === 'launch' || story.stationVisited) { rocketLaunch(true); return; }
     showDialogue(q.state === 'new' ? 'A real rocket. Professor Orrin is standing right there; ask him about it.' : `The fuel gauge reads EMPTY. Aether Cores: ${Object.values(q.cores).filter(Boolean).length}/3.`, 'ROCKET');
 }
 async function rocketLaunch(up) {
     if (CS.on) return;
+    if (up) { story.flights = (story.flights || 0) + 1; if (story.flights >= 5) { rocketDisaster(); return; } }
     const R = up ? SKY_ROCKET : STATION_ROCKET, D = up ? STATION_ROCKET : SKY_ROCKET, F = followers();
     csBegin({});
     csUse(hero); F.forEach(m => csUse(m.actor));
     placeActor(hero, R.x - 1, R.z + 6); hero.dir = 'up';
     F.forEach((m, i) => { placeActor(m.actor, R.x + 1.4 * (i + 1) - 1, R.z + 7.2); m.actor.dir = 'up'; });
     csShot(R.x, R.z + 3, { dist: 16, h: 4, look: 6, snap: true });
-    await csSay(up ? 'PROFESSOR ORRIN' : 'SILVER', up ? "All aboard! Strap in, keep your arms inside the rocket, and try not to scream." : "Home's that way. Well, YOUR home. Hold on!", 2800);
+    await csSay(up ? 'PROFESSOR ORRIN' : 'SILVER', up ? (story.flights === 4 ? "All aboard! ...Odd. The fuel valve was loose again this morning. Must be the goats. Strap in!" : "All aboard! Strap in, keep your arms inside the rocket, and try not to scream.") : "Home's that way. Well, YOUR home. Hold on!", 2800);
     await Promise.all([csWalk(hero, R.x, R.z + 3, 3)].concat(F.map(m => csWalk(m.actor, R.x, R.z + 3, 3))));
     hero.mesh.visible = false; hero.blob.visible = false; F.forEach(m => { m.actor.mesh.visible = false; m.actor.blob.visible = false; });
     csShot(R.x, R.z, { dist: 22, h: 1.2, look: 9, fov: 42, snap: true });
@@ -5575,7 +5608,8 @@ function moveHero(dt, ix, iz) {
         if (p.z > WORLD_LIMIT) nx = clamp(nx, -(PIER.hw - 0.3), PIER.hw - 0.3);     // out on the pier only the planks are walkable
         placeActor(hero, nx, nz);
         // Random encounters anywhere in the wilds (towns, landmarks and the village are safe; roads halve the rate)
-        if (story.ch >= 3 && !story.beauDown && !story.warlordDown && Math.hypot(nx - BASE.x, nz - BASE.z) < 46) { beauregardScene(); return; }
+        if (!story.fallen && story.ch >= 3 && !story.beauDown && !story.warlordDown && Math.hypot(nx - BASE.x, nz - BASE.z) < 46) { beauregardScene(); return; }
+        if (story.dark && !story.ending && !party.some(m => m.key === 'beauregard') && Math.hypot(nx - BASE.x, nz - BASE.z) < 46 && Math.hypot(nx - BASE.x, nz - BASE.z - 15) > 14) { beauJoinScene(); return; }
         const reg = regionAt(nx, nz);
         const safe = reg === 'village' || nz > WORLD_LIMIT - 2 || Math.hypot(nx - BASE.x, nz - BASE.z) < 32 || PLACES.some(pl => Math.hypot(nx - pl.x, nz - pl.z) < pl.r);
         if (!safe && !RACE) {
@@ -5784,6 +5818,7 @@ function csEnd(endPos) {
     updateBiomeLocationText(); updateMinimap(); checkProximity();
 }
 function updateCutscene(dt) {
+    if (HANGAR.cur) animGear(HANGAR.cur, { dir: 'down', atk: HANGAR.flex });
     for (let i = CS.movers.length - 1; i >= 0; i--) {
         const m = CS.movers[i], a = m.a, p = a.mesh.position, dx = m.x - p.x, dz = m.z - p.z, d = Math.hypot(dx, dz), st = m.sp * dt;
         if (d <= st) { placeActor(a, m.x, m.z); a.anim = 0; CS.movers.splice(i, 1); m.res(); }
@@ -6147,6 +6182,113 @@ const RECRUIT_FIGHTS = {
         await csSay('NILS', "Ha! Twenty winters of carving ice. Raider steel's softer.");
     }
 };
+// ---------- THE HANGAR: gear reveal cutscenes ----------
+const HANGAR = { built: false, x: -4400, z: 900, gears: {}, cur: null, flex: false, lights: [], doors: [] };
+function buildHangar() {
+    if (HANGAR.built) return; HANGAR.built = true;
+    const X = HANGAR.x, Z = HANGAR.z, P = [], L = [];
+    P.push([gBox(64, 0.5, 64, 0, -0.25, 0), 0x2c2f36]);                                          // concrete floor
+    for (let i = -3; i <= 3; i++) P.push([gBox(0.25, 0.04, 64, i * 9, 0.02, 0), 0x3a3e48]);        // floor seams
+    for (let i = 0; i < 12; i++) P.push([gBox(1.2, 0.05, 2.2, -6.6 + i * 1.2, 0.04, 11.5), i % 2 ? 0x15151a : 0xe0b020]);   // hazard stripe
+    P.push([gBox(64, 38, 1.2, 0, 19, -32), 0x3b4250], [gBox(1.2, 38, 64, -32, 19, 0), 0x363c48], [gBox(1.2, 38, 64, 32, 19, 0), 0x363c48]);   // walls
+    P.push([gBox(20, 38, 1.2, -22, 19, 32), 0x3b4250], [gBox(20, 38, 1.2, 22, 19, 32), 0x3b4250], [gBox(24, 8, 1.2, 0, 34, 32), 0x3b4250]); // front wall around the door
+    P.push([gBox(64, 0.6, 64, 0, 38.3, 0), 0x22252c]);                                             // roof
+    for (let i = -2; i <= 2; i++) P.push([gBox(64, 1.2, 1.0, 0, 36.5, i * 12), 0x4a5262], [gBox(0.8, 3, 0.8, -31, 35, i * 12), 0x4a5262], [gBox(0.8, 3, 0.8, 31, 35, i * 12), 0x4a5262]);  // trusses
+    for (let i = -3; i <= 3; i++) P.push([gBox(0.9, 38, 0.9, i * 9, 19, -31.2), 0x4a5262]);          // wall ribs
+    // gantry towers either side of the bay, with catwalks at three heights
+    [-1, 1].forEach(s => {
+        const gx = s * 11;
+        [[-4, -4], [-4, 4], [4, -4], [4, 4]].forEach(([dx, dz]) => P.push([gBox(0.7, 30, 0.7, gx + dx * 0.6, 15, -10 + dz * 0.6), 0xd8a020]));
+        [8, 16, 24].forEach(h => {
+            P.push([gBox(5.6, 0.35, 5.6, gx, h, -10), 0x5a6272], [gBox(5.6, 0.12, 0.12, gx, h + 1.1, -10 + 2.7), 0xd8a020]);
+            P.push([gBox(6.5, 0.3, 1.4, gx - s * 5.4, h, -10), 0x5a6272]);                        // arm reaching toward the gear
+            for (let k = 0; k < 4; k++) P.push([gBox(0.12, 2.6, 0.12, gx + (k - 1.5) * 1.6, h + 1.4, -10 + 2.7, 0, 0, 0.6 * (k % 2 ? 1 : -1)), 0x8a6a20]);
+        });
+    });
+    P.push([gCyl(8, 8.6, 1.2, 28, 0, 0.6, -10), 0x4a4f5c], [gCyl(6.6, 6.6, 0.1, 28, 0, 1.22, -10), 0x2a2e36]);   // pedestal
+    P.push([gBox(6, 1.2, 4, -24, 0.6, 18), 0x5a4a3a], [gBox(4, 2, 4, -26, 1, 12), 0x3e4a5a], [gCyl(1.2, 1.2, 2.4, 10, 24, 1.2, 20), 0x7a3a2a], [gCyl(1.2, 1.2, 2.4, 10, 26.5, 1.2, 20), 0x7a3a2a]);  // crates & fuel drums
+    const shell = new THREE.Mesh(mergeGeos(P), matProp); shell.position.set(X, 0, Z); shell.receiveShadow = true; scene.add(shell);
+    const ring = new THREE.Mesh(new THREE.RingGeometry(6.8, 7.4, 48).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0x00e5ff, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false }));
+    ring.position.set(X, 1.3, Z - 10); scene.add(ring); HANGAR.ring = ring;
+    // sliding doors
+    [-1, 1].forEach(s => { const d = new THREE.Mesh(mergeGeos([[gBox(12.2, 30, 0.8, 0, 15, 0), 0x56606e], [gBox(12.2, 1.2, 0.9, 0, 15, 0), 0xe0b020]]), matProp); d.position.set(X + s * 6, 0, Z + 31.6); scene.add(d); HANGAR.doors.push({ m: d, s: s }); });
+    // ceiling floodlights: fixture + light cone (switched on during the scene)
+    [[-12, -18], [12, -18], [-12, -2], [12, -2], [-12, 14], [12, 14], [0, -24]].forEach(([dx, dz]) => {
+        const fx = new THREE.Mesh(mergeGeos([[gBox(2.6, 0.8, 1.6, 0, 0, 0), 0x2a2e36]]), matProp); fx.position.set(X + dx, 35.4, Z + dz); scene.add(fx);
+        const lens = new THREE.Mesh(new THREE.BoxGeometry(2.2, 0.1, 1.2), new THREE.MeshBasicMaterial({ color: 0x334050 })); lens.position.set(X + dx, 34.95, Z + dz); scene.add(lens);
+        const cone = new THREE.Mesh(new THREE.ConeGeometry(7, 34, 20, 1, true).translate(0, -17, 0), new THREE.MeshBasicMaterial({ color: 0xcfe8ff, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }));
+        cone.position.set(X + dx, 34.9, Z + dz); scene.add(cone);
+        HANGAR.lights.push({ lens: lens, cone: cone });
+    });
+    HANGAR.shell = shell;
+}
+function hangarLights(on, instant) {
+    HANGAR.lights.forEach((L, i) => {
+        const go = () => { L.lens.material.color.set(on ? 0xf4fbff : 0x334050); if (instant) L.cone.material.opacity = on ? 0.07 : 0; else tween(0.25, k => { L.cone.material.opacity = on ? 0.07 * k : 0.07 * (1 - k); }); if (on && !instant) triggerCameraShake(0.15); };
+        if (instant || CS.skip) go(); else setTimeout(go, i * 260);
+    });
+}
+function hangarGear(key) {
+    if (!HANGAR.gears[key]) { const a = makeGearActor(key, 26, 6.5); a.mesh.visible = false; a.blob.visible = false; HANGAR.gears[key] = a; }
+    return HANGAR.gears[key];
+}
+const HANGAR_LINES = {
+    kaelen:  { pre: [['MARA', "Your father rebuilt it down here, one scavenged bolt at a time. Go on. Say hello."]], awe: "It's... enormous. Dad, you built a giant.", line: ['KAELEN', "AEGIS. Let's finish what you started."] },
+    lira:    { pre: [['LIRA', "Before we head out, there's something I've kept under a tarp since Corin left."]], awe: "That's yours?! It looks like it could fly.", line: ['LIRA', "It's time to put this thing to good use."] },
+    cassius: { pre: [['CASSIUS', "The Stoa's armory survived the fire. One thing in it survived better than the rest."]], awe: "It's a walking fortress.", line: ['CASSIUS', "This battle calls for me pulling out the big guns."] },
+    maren:   { pre: [['SISTER MAREN', "My mother kept a machine for carrying the wounded out of burning towns. I kept it running."]], awe: "It's glowing. Is that... a flame in there?", line: ['SISTER MAREN', "A light this bright was made to lead people home. Let's go."] },
+    nils:    { pre: [['NILS', "Twenty winters I've hauled ice with this old beast. Never thought I'd take it to war."]], awe: "Those icicles are taller than I am.", line: ['NILS', "This will make our enemies Freeze at our command."] },
+    silver:  { pre: [['SILVER', "Groundsider! The Orb's hangar bay. You have to see what I've been tuning since I was twelve."]], awe: "It's got its own orbit ring!", line: ['SILVER', "This is truly out of this world. Check it out!"] }
+};
+async function hangarScene(key) {
+    if (CS.on) return;
+    buildHangar();
+    const X = HANGAR.x, Z = HANGAR.z, back = { x: hero.mesh.position.x, z: hero.mesh.position.z };
+    const pilot = key === 'kaelen' ? hero : (party.find(m => m.key === key) || {}).actor, L = HANGAR_LINES[key], G = GEARS[key];
+    if (!pilot) return;
+    csBegin({ night: true, hideParty: party, music: 'cutscene' });
+    const gear = hangarGear(key); HANGAR.cur = gear; HANGAR.flex = false;
+    gear.mesh.visible = true; gear.blob.visible = true; placeActor(gear, X, Z - 10); gear.mesh.position.y += 1.2; gear.yaw = 0;
+    HANGAR.doors.forEach(d => { d.m.position.x = X + d.s * 6; }); hangarLights(false, true); HANGAR.ring.material.opacity = 0;
+    csUse(hero); placeActor(hero, X + (pilot === hero ? 0 : -1.6), Z + 36); hero.dir = 'up';
+    if (pilot !== hero) { csUse(pilot); placeActor(pilot, X + 1.6, Z + 36); pilot.dir = 'up'; }
+    // 1. the doors grind open on a dark bay
+    csShot(X, Z + 30, { dist: 16, h: 5, look: 6, yaw: 0, snap: true });
+    await csTitle(key === 'silver' ? 'HALCYON ORB · HANGAR BAY' : key === 'kaelen' ? 'BENEATH THE NEON AEGIS' : 'THE HANGAR', 1700);
+    for (const [sp, t] of L.pre) await csSay(sp, t);
+    if (!CS.skip) { triggerCameraShake(0.5); tween(2.2, k => { HANGAR.doors.forEach(d => { d.m.position.x = X + d.s * (6 + 11.5 * k); }); }); }
+    else HANGAR.doors.forEach(d => { d.m.position.x = X + d.s * 17.5; });
+    await Promise.all([csWalk(hero, X + (pilot === hero ? 0 : -1.6), Z + 16, 4.5)].concat(pilot !== hero ? [csWalk(pilot, X + 1.6, Z + 16, 4.5)] : []));
+    // 2. lights clank on, bank by bank; the silhouette fills the bay
+    csShot(X, Z + 8, { dist: 18, h: 3, look: 9, yaw: 0.25, fov: 55, snap: true });
+    await csSay('', 'Somewhere above, a breaker slams home.', 1600);
+    hangarLights(true);
+    tween(1.8, k => { ambientLight.intensity = 0.32 + 0.6 * k; sun.intensity = 0.28 + 0.4 * k; });
+    await csWait(1900);
+    // 3. low angle at its feet: it is HUGE
+    csShot(X, Z - 10, { dist: 15, h: 0.7, look: 15, fov: 62, yaw: 0, snap: true });
+    if (!CS.skip) { tween(0.6, k => { HANGAR.ring.material.opacity = 0.8 * k; }); particles({ x: X - 4, y: 2, z: Z - 6 }, 0xdfe8f0, 18, { speed: 3 }); particles({ x: X + 4, y: 2, z: Z - 6 }, 0xdfe8f0, 18, { speed: 3 }); }
+    CS.rate = 0.35; CS.lookT.y += 6;
+    await csTitle(G.name, 1900);
+    csShotA(hero, { dist: 4.2, h: 1.5, look: 2.4, fov: 40, yaw: Math.PI - 0.5, snap: true });
+    await csSay(SP(story.fallen ? leaderKey() : 'kaelen'), L.awe);
+    // 4. the pilot steps up to the pedestal
+    await csWalk(pilot, X + (pilot === hero ? 0 : 1.2), Z + 3.6, 3.5);
+    pilot.dir = 'up';
+    csShot(pilot.mesh.position.x, pilot.mesh.position.z, { dist: 7.5, h: 2.6, look: 8, fov: 50, yaw: 0.35, snap: true });
+    await csSay(L.line[0], L.line[1]);
+    // 5. it answers: power surge and a flex
+    HANGAR.flex = true;
+    csFlash(0xffffff, 160);
+    if (!CS.skip) { triggerCameraShake(1.1); ringFX({ x: X, y: 1.4, z: Z - 10 }, 0x00e5ff, 1, 12, 0.6, true); beamFX({ x: X, y: 0, z: Z - 10 }, 0x00e5ff, 30, 4, 0.8); }
+    csShot(X, Z - 10, { dist: 28, h: 9, look: 13, fov: 52, yaw: -0.45, rate: 0.6, snap: true });
+    CS.rate = 0.25; CS.camT.x += 14;
+    await csWait(2600);
+    HANGAR.flex = false;
+    gear.mesh.visible = false; gear.blob.visible = false; HANGAR.cur = null;
+    hangarLights(false, true); HANGAR.ring.material.opacity = 0;
+    csEnd(back);
+}
 async function recruitScene(n) {
     const m = joinAlly(n), A = m.actor, X = n.x, Z = n.z, def = ALLY_DEFS[n.ally];
     csBegin({ hideParty: party.filter(q => q !== m) });
@@ -6158,7 +6300,8 @@ async function recruitScene(n) {
     await RECRUIT_FIGHTS[n.ally](A, g0, g1, X, Z);
     csEnd({ x: hero.mesh.position.x, z: hero.mesh.position.z });
     const sp = n.name.toUpperCase();
-    playDialogue(ALLY_STORY[n.ally].map(t => ({ s: sp, t: t })).concat([{ s: 'PARTY', t: `${def.name.toUpperCase()} JOINS THE PARTY! ${def.title}. ${def.skill}: ${def.desc} Allies act after your combo, and strike 50% harder when you land a deathblow.` }]));
+    playDialogue(ALLY_STORY[n.ally].map(t => ({ s: sp, t: t })).concat([{ s: 'PARTY', t: `${def.name.toUpperCase()} JOINS THE PARTY! ${def.title}. ${def.skill}: ${def.desc} Allies act after your combo, and strike 50% harder when you land a deathblow.` }]),
+        () => hangarScene(n.ally).then(() => showDialogue(`${def.name} brings the gear ${GEARS[n.ally].name}! It joins your convoy when you ride [G], and ${def.name} can board it in battle.`, 'GEAR')));
 }
 
 // ---------- BEAUREGARD: the ambush on the crag road ----------
@@ -6564,6 +6707,338 @@ updateMinimap();
 checkProximity();
 animate();
 // ==========================================
+// 14b. THE FIFTH FLIGHT: the rocket disaster, the heirs, and the Ash Path
+// ==========================================
+const SP = k => k === 'maren' ? 'SISTER MAREN' : k === 'kaelen' ? 'KAELEN' : (ALLY_DEFS[k] ? ALLY_DEFS[k].name.toUpperCase() : k.toUpperCase());
+const shadeHex = (h, f) => { const n = parseInt(h.slice(1), 16), c = s => Math.max(0, Math.min(255, Math.round(((n >> s) & 255) * f))); return '#' + [16, 8, 0].map(s => c(s).toString(16).padStart(2, '0')).join(''); };
+const lookOf = o => { const L = Object.assign({}, o); ['hair', 'top', 'robe', 'pants'].forEach(k => { if (L[k]) { L[k + 'D'] = L[k + 'D'] || shadeHex(L[k], 0.72); if (k !== 'pants' && k !== 'robe') L[k + 'L'] = L[k + 'L'] || shadeHex(L[k], 1.3); } }); return Object.assign({}, D0, L); };
+
+// ---------- Vanguard (Ivar) and Beauregard as playable characters ----------
+ALLY_DEFS.vanguard = { name: 'Vanguard', title: 'Ivar, warlord of the Obsidian Gate', town: 'the Obsidian Gate', pow: 140, skill: 'OBSIDIAN CANNON', desc: 'A reactor-cannon blast that shakes the whole field.',
+    look: { hair: '#9a9aa6', hairD: '#6a6a76', hairL: '#c8c8d2', hairStyle: 'short', beard: '#8a8a96', beardD: '#5a5a66', top: '#2a2a32', topD: '#1a1a20', topL: '#43434f', pauld: true, trim: '#ff4a2e', trimD: '#a8301a', collar: '#ff4a2e', pants: '#1f1f26', pantsD: '#141418', blade: '#5a5a66', bladeL: '#ff8a6a', hilt: '#2a2a32', scale: 1.08 } };
+ALLY_DEFS.beauregard = { name: 'Beauregard', title: "Vanguard's blade, the red scarf", town: 'the crag road', pow: 120, skill: 'RED SCARF', desc: 'Two quick cuts, every turn.', look: Object.assign({}, CAPTAIN_D) };
+CHAR_BASE.vanguard = { hp: 1700, ep: 30, atk: 150, def: 110, ap: 7, wtype: 'cannon', g: { hp: 100, ep: 2, atk: 8, def: 6 } };
+CHAR_BASE.beauregard = { hp: 1200, ep: 35, atk: 140, def: 75, ap: 8, wtype: 'saber', g: { hp: 80, ep: 3, atk: 8, def: 4 } };
+[['cannon', ['Raider Cannon', 'Siege Bore', 'Reactor Lance', 'Ashford Ender']], ['saber', ['Red Saber', 'Crag Fang', 'Scarlet Edge', 'The Last Order']]].forEach(([t, names]) => names.forEach((n, i) => {
+    WEAPONS[t + i] = { id: t + i, type: t, tier: i, name: n, atk: [0, 18, 40, 70][i], price: [0, 320, 950, 2300][i] };
+}));
+OWNED.weapons.cannon0 = 1; OWNED.weapons.saber0 = 1;
+if (typeof WHO !== 'undefined') Object.assign(WHO, { cannon: 'Vanguard', saber: 'Beauregard' });
+GEARS.vanguard = { name: 'OBSIDIAN', hp: 2400, pal: { S: '#2f2f38', SL: '#4d4d5a', SD: '#1c1c22', K: '#0e0e12', RD: '#ff4a2e', Y: '#8a8a96' } };
+GEARS.beauregard = { name: 'SCARLET', hp: 1600, pal: { S: '#43434f', SL: '#6a6a78', SD: '#2f2f38', K: '#141418', RD: '#ff3b30', Y: '#c2301a' } };
+ALLY_ARTS.vanguard = [
+    { name: 'OBSIDIAN CANNON', seq: [3, 3], mult: 3.0, tgt: 'one', learned: true, q: '"Kneel, or be knelt."' },
+    { name: 'IRON DOCTRINE', seq: [2, 2, 2], mult: 2.3, tgt: 'all', fx: 'guardAll', learned: true, q: '"Order is a wall. Stand behind it."' },
+    { name: 'ASHFORD FIRE', seq: [1, 2, 3], mult: 2.6, tgt: 'all', learned: true, q: '"I remember every town. That is my punishment."' },
+    { name: 'THE LAST ORDER', seq: [4, 3, 3, 3], mult: 4.6, tgt: 'one', fx: 'stun', learned: true, q: '"There are no questions left."' }];
+ALLY_ARTS.beauregard = [
+    { name: 'RED SCARF', seq: [1, 1, 2], mult: 2.6, tgt: 'one', learned: true, q: '"You never see the second cut."' },
+    { name: 'TWIN CUT', seq: [2, 2], mult: 2.4, tgt: 'one', fx: 'mark', learned: true, q: '"Mark him. He bleeds first."' },
+    { name: 'CRAG AMBUSH', seq: [1, 2, 1, 2], mult: 2.5, tgt: 'all', learned: true, q: '"Surprise is a weapon too."' },
+    { name: 'THE BLADE THAT HELD', seq: [3, 1, 3], mult: 3.8, tgt: 'one', fx: 'stun', learned: true, q: '"I only ever held the blade."' }];
+(() => { const A = n => ART_ANIMS[n] || ART_ANIMS['GEAR SMASH'];
+    Object.assign(ART_ANIMS, { 'OBSIDIAN CANNON': A('ORBITAL STRIKE'), 'IRON DOCTRINE': A('SPEAR CYCLONE'), 'ASHFORD FIRE': A('ZERO-G RAIN'), 'THE LAST ORDER': A('STOA THRUST'),
+        'RED SCARF': A('MOONLIGHT WALTZ'), 'TWIN CUT': A("HUNTER'S MARK"), 'CRAG AMBUSH': A('ARROW RAIN'), 'THE BLADE THAT HELD': A('STOA THRUST') }); })();
+ALLY_STORY.vanguard = ["My name was Ivar. Nils and I carved ice in Frostfall before I learned that fear builds walls faster than love does.",
+    "Ashford, the burning, the books: I did all of it, and I'd tell you I was sorry if I thought sorrow changed anything.", "You came to me grieving. Grief is the only honest teacher I've ever had."];
+ALLY_STORY.beauregard = ["Twelve years holding Vanguard's blade. He gives the orders; I make them true.", "Four flights to learn the professor's habits. One loose valve on the fifth.", "Don't look at me like that. You're the ones carrying torches now."];
+Object.assign(HANGAR_LINES, {
+    vanguard: { pre: [['VANGUARD', "Come. Every warlord keeps one machine he never lets anyone see."]], awe: "That's the machine from every nightmare in the north.", line: ['VANGUARD', "OBSIDIAN has never lost a battle it chose. It chooses this one."] },
+    beauregard: { pre: [['BEAUREGARD', "You want to know what twelve years of loyalty buys? Come look."]], awe: "It's... beautiful. Like a knife.", line: ['BEAUREGARD', "Time to show you what the scarf's been hiding."] }
+});
+
+// ---------- foes: villagers, and the Dostoevsky protagonists who defend the towns ----------
+const VLOOK = (i, extra) => Object.assign({}, D0, VILLAGER_LOOKS[i % VILLAGER_LOOKS.length], { collar: VILLAGER_LOOKS[i % VILLAGER_LOOKS.length].topL, pauld: false }, extra || {});
+Object.assign(BESTIARY, {
+    farmer:   { name: 'ANGRY FARMER', body: 'human', D: VLOOK(0, { blade: '#8a6a3a', bladeL: '#c8a46a', hilt: '#5a3a1e' }), hp: 950, dmg: [80, 120], xp: 26, trait: 'none' },
+    militia:  { name: 'TOWN MILITIA', body: 'human', D: VLOOK(2, { pauld: true, trim: '#8a8a96', trimD: '#5a5a66', blade: '#c8ccd8', bladeL: '#ffffff', hilt: '#5a3a1e' }), hp: 1250, dmg: [100, 140], xp: 32, trait: 'double' },
+    watchman: { name: 'WATCHMAN', body: 'human', D: VLOOK(4, { pauld: true, trim: '#c9a24a', trimD: '#9a7a2a', blade: '#d8dce8', bladeL: '#ffffff', hilt: '#8a5a2b' }), hp: 1500, dmg: [95, 135], xp: 36, trait: 'armor', def: 30 },
+    fisher:   { name: 'NET-THROWER', body: 'human', D: VLOOK(1, { blade: '#7a9ab8', bladeL: '#cfe8ff', hilt: '#4a3524' }), hp: 1000, dmg: [80, 115], xp: 28, trait: 'chill' },
+    miner:    { name: 'MINER', body: 'human', D: VLOOK(3, { blade: '#6b6b74', bladeL: '#a8a8b4', hilt: '#6b4a2a' }), hp: 1400, dmg: [110, 150], xp: 34, trait: 'charge' },
+    scholar:  { name: 'HERMITAGE SCHOLAR', body: 'human', D: VLOOK(5, { item: 'book', bookC: '#2f5a8a', bookP: '#f4ead0', gold: '#f6c945' }), hp: 900, dmg: [70, 110], xp: 30, trait: 'regen' }
+});
+const VILLAGER_FOES = ['farmer', 'militia', 'watchman', 'fisher', 'miner', 'scholar'];
+const DEFENDERS = {
+    underground: { name: 'THE UNDERGROUND MAN', from: 'Notes from Underground (1864)', trait: 'thorns', hp: 7000, D: lookOf({ hair: '#3a3a3a', hairStyle: 'short', top: '#4a4a52', pants: '#2a2a30', collar: '#8a8a8a' }),
+        pre: "I am a sick man... I am a spiteful man. And still I will not let you burn this pier.", pre2: "Twice two makes four is not life, gentlemen. It is the beginning of death. Come, then.",
+        fall: "You think reason won? Man is not a piano key... Even now, lying here, I choose." },
+    dmitri: { name: 'DMITRI KARAMAZOV', from: 'The Brothers Karamazov (1880)', trait: 'double', hp: 7600, D: lookOf({ hair: '#2b1d14', hairStyle: 'short', beard: '#2b1d14', beardD: '#1a110b', top: '#7a2a2a', pants: '#2a2a30', blade: '#c8ccd8', bladeL: '#ffffff', hilt: '#5a3a1e' }),
+        pre: "Beauty is a terrible and awful thing. God and the devil are fighting there, and the battlefield is the heart of man.", pre2: "Yours is lost, I think. Mine isn't. Not yet!",
+        fall: "I didn't kill... but I wanted to. Watch your hearts, both of you. Watch them." },
+    myshkin: { name: 'PRINCE LEV MYSHKIN', from: 'The Idiot (1869)', trait: 'regen', hp: 7200, D: lookOf({ hair: '#e0c068', hairStyle: 'short', top: '#d8d0c0', pants: '#5a5a66', collar: '#ffffff', skin: '#f6d8c4', skinD: '#dbb49a' }),
+        pre: "They say beauty will save the world. I'd like to believe it, even of you.", pre2: "Compassion is the chief law of human existence. I won't hate you. I'll only stand here.",
+        fall: "I'm not angry... I'm only sorry. So very sorry for you." },
+    stavrogin: { name: 'NIKOLAI STAVROGIN', from: 'Demons (1872)', trait: 'evade', hp: 7800, D: lookOf({ hair: '#141418', hairStyle: 'short', top: '#1e1e28', pants: '#141418', collar: '#f2f2f2', blade: '#d8dce8', bladeL: '#ffffff', hilt: '#141418' }),
+        pre: "I've tried my strength everywhere. It's boundless. But what to apply it to, I've never known.", pre2: "Perhaps to stopping you. Perhaps to nothing at all. Let's find out.",
+        fall: "Nothing came of me but negation... Look closely. That is what you are becoming." },
+    ivan: { name: 'IVAN KARAMAZOV', from: 'The Brothers Karamazov (1880)', trait: 'charge', hp: 8200, D: lookOf({ hair: '#4a3324', hairStyle: 'short', glasses: true, glassF: '#c0c0c8', top: '#2f3f5a', pants: '#2a2a30', collar: '#f2f2f2', item: 'book', bookC: '#7a2a2a', bookP: '#f4ead0', gold: '#f6c945' }),
+        pre: "If there is no immortality, there is no virtue, and everything is lawful. Is that the creed you're burning for?", pre2: "Then come and test it on me.",
+        fall: "It's not God I don't accept... it's the world. You've only proven my point." },
+    alyosha: { name: 'ALYOSHA KARAMAZOV', from: 'The Brothers Karamazov (1880)', trait: 'regen', hp: 8600, D: lookOf({ hair: '#8a5a2a', hairStyle: 'short', robe: '#2a2a30', top: '#2a2a30', collar: '#1a1a20', belt: '#5a3a1e', skin: '#f1cfae', skinD: '#d8ac86' }),
+        pre: "Love life more than the meaning of it. Put down the torch, and I will still call you brother.", pre2: "...You won't. Then I'll stand in front of the library. Someone must.",
+        fall: "Remember how good it was, once, when we were all together... Remember Kaelen like that." },
+    raskolnikov: { name: 'RODION RASKOLNIKOV', from: 'Crime and Punishment (1866)', trait: 'charge', hp: 9500, D: lookOf({ hair: '#2b1d14', hairStyle: 'short', top: '#5a4a3a', pants: '#2a2a30', collar: '#3a3a44', blade: '#9a9aa6', bladeL: '#d8dce8', hilt: '#6b4a2a' }),
+        pre: "I killed once, to prove I had the right. Was I a trembling creature, or had I the right? I can tell you the answer.", pre2: "You'll ask yourself the same question every night. Let me spare you. Go home.",
+        fall: "This... this is only the beginning of your punishment. Not mine. Not anymore." }
+};
+const MONSTER_DEF_MAX = 30, DEFENDER_DEF = MONSTER_DEF_MAX * 20;
+Object.keys(DEFENDERS).forEach(k => { const d = DEFENDERS[k];
+    ENEMY_TYPES[k] = { name: d.name, hp: d.hp, dmg: [150, 215], size: 0.8, tint: 0xffffff, boss: true, trait: d.trait, xp: 320, def: DEFENDER_DEF, D: d.D, defender: true }; });
+const TOWNS = [
+    { k: 'brine', name: 'BRINEWICK', x: BRINE.x, z: BRINE.z + 4, biome: 'forest', boss: 'underground' },
+    { k: 'ember', name: 'EMBERHOLLOW', x: EMBER.x + 4, z: EMBER.z + 6, biome: 'crags', boss: 'dmitri' },
+    { k: 'sky', name: 'SKYREACH', x: SKY.x, z: SKY.z + 6, biome: 'snow', boss: 'myshkin' },
+    { k: 'frost', name: 'FROSTFALL HAMLET', x: FROST.x, z: FROST.z + 8, biome: 'snow', boss: 'stavrogin' },
+    { k: 'stoa', name: 'STOA CROSSING', x: STOA.x + 4, z: STOA.z + 12, biome: 'desert', boss: 'ivan' },
+    { k: 'herm', name: 'SYLVAN HERMITAGE', x: HERM.x, z: HERM.z + 10, biome: 'forest', boss: 'alyosha' },
+    { k: 'valkora', name: 'VALKORA', x: -2, z: 12, biome: 'forest', boss: 'raskolnikov' }
+];
+const burnedCount = () => TOWNS.filter(t => (story.burned || {})[t.k]).length;
+TOWNS.forEach(T => INTERACTS.push({ x: T.x, z: T.z, r: 4.5,
+    label: () => story.dark && !inCombat && !(story.burned || {})[T.k] && (T.k !== 'valkora' || burnedCount() >= 6) ? '[E] SET THE TORCH: ' + T.name : '', act: () => torchTown(T) }));
+function torchTown(T) {
+    if (!story.dark || (story.burned || {})[T.k] || dlg || inCombat || CS.on) return;
+    if (T.k === 'valkora' && burnedCount() < 6) return;
+    const D = DEFENDERS[T.boss], me = SP(leaderKey());
+    playDialogue([
+        { s: T.name, t: "Shutters slam. A bell rings and keeps ringing. Then one figure walks into the square and plants themselves between your torch and the houses." },
+        { s: D.name, t: D.pre }, { s: me, t: "Step aside. This doesn't have to include you." }, { s: D.name, t: D.pre2 },
+        { s: 'SYSTEM', t: `${D.name} of ${D.from}. DEF ${DEFENDER_DEF}: twenty times tougher than any monster. Every hit lands at 40% strength. Bring your longest combos.` }
+    ], () => startCombat([T.boss, 'militia', 'farmer'], T.biome, { onWin: () => burnTown(T) }));
+}
+function applyBurn(T) {
+    const r = (a, b) => a + Math.random() * (b - a);
+    for (let i = 0; i < 12; i++) {
+        const a = i / 12 * Math.PI * 2 + r(-0.2, 0.2), d = r(6, 18), x = T.x + Math.cos(a) * d, z = T.z + Math.sin(a) * d, gy = groundAt(x, z);
+        makeGlow(x, gy + r(1, 3), z, i % 3 ? 0xff6a20 : 0xffb040, r(3.5, 6.5), 0.6);
+        if (i % 2 === 0) addSmoke(x, gy + 4, z);
+    }
+    npcList.forEach(n => {
+        if (n.joined || Math.hypot(n.x - T.x, n.z - T.z) > 36) return;
+        n.joined = true; n.burned = true;
+        if (n.actor) { n.actor.mesh.visible = false; n.actor.blob.visible = false; }
+        if (n.tag) n.tag.visible = false; if (n.mark) n.mark.visible = false; if (n.col) n.col.on = false;
+    });
+}
+function burnTown(T) {
+    story.burned = story.burned || {}; story.burned[T.k] = true;
+    applyBurn(T);
+    const D = DEFENDERS[T.boss], n = burnedCount();
+    playDialogue([{ s: D.name, t: D.fall }, { s: 'SYSTEM', t: `${T.name} burns. (${n}/7)` }].concat(
+        n === 6 ? [{ s: 'VANGUARD', t: party.some(m => m.key === 'vanguard') ? "Only Valkora remains. The boy's home. Finish it." : "A raven arrives from the Obsidian Gate: 'Only Valkora remains. Finish it.'" }] : []),
+        () => { setObjective(); if (n >= 7) ashEnding(); else autoSave(); });
+}
+
+// ---------- the disaster ----------
+const GRIEF = {
+    lira: "Kaelen... no. NO. Corin walked away from me, and now you too?",
+    cassius: "Marcus Aurelius says loss is nothing but change. Marcus Aurelius never watched a rocket burn.",
+    maren: "I've stitched a hundred wounds. There's nothing... there's nothing left to stitch.",
+    nils: "Twenty winters of ice, and I have never been this cold.",
+    silver: "I wanted to show them my home. I wanted to show them everything.",
+    vanguard: "...", beauregard: "..."
+};
+const TURN_LINES = {
+    nils: [{ s: 'NILS', t: "Ivar always said the world only listens to fire. I spent my life telling him he was wrong." }, { s: 'NILS', t: "Look where being right got us. Maybe it's time I listened to my brother." }],
+    cassius: [{ s: 'CASSIUS', t: "I carried Vanguard's shield once. Order. Certainty. Nobody I loved ever burned in his ranks." }, { s: 'CASSIUS', t: "The Stoa taught me to accept what I cannot change. I can't accept this." }]
+};
+async function rocketDisaster() {
+    const R = SKY_ROCKET, F = followers(), reserves = party.filter(m => !m.active && F.indexOf(m) < 0), rk = R.rocket;
+    csBegin({});
+    csUse(hero); F.forEach(m => csUse(m.actor)); reserves.forEach(m => csUse(m.actor));
+    placeActor(hero, R.x - 1, R.z + 6); hero.dir = 'up';
+    F.forEach((m, i) => { placeActor(m.actor, R.x + 1.4 * (i + 1) - 1, R.z + 7.2); m.actor.dir = 'up'; });
+    reserves.forEach((m, i) => { placeActor(m.actor, R.x - 2.5 + i * 3, R.z + 18); m.actor.dir = 'up'; });
+    csShot(R.x, R.z + 9, { dist: 18, h: 5, look: 4, snap: true });
+    await csSay('PROFESSOR ORRIN', "Flight number five! The old girl has never flown better. Strap in, everyone.", 2600);
+    if (reserves.length) await csSay(SP(reserves[0].key), reserves.length > 1 ? "We'll hold the fort down here. Bring us back a piece of the sky." : "I'll keep watch down here. Bring me back a piece of the sky.", 2600);
+    await csSay('KAELEN', "Back before supper. Promise.", 2000);
+    await Promise.all([csWalk(hero, R.x, R.z + 3, 3)].concat(F.map(m => csWalk(m.actor, R.x, R.z + 3, 3))));
+    hero.mesh.visible = false; hero.blob.visible = false; F.forEach(m => { m.actor.mesh.visible = false; m.actor.blob.visible = false; });
+    csShot(R.x, R.z, { dist: 26, h: 1.2, look: 12, fov: 46, snap: true });
+    for (const n of ['3...', '2...', '1...']) { await csSay('COUNTDOWN', n, 900); if (!CS.skip) triggerCameraShake(0.3); }
+    let fire = null;
+    if (!CS.skip) fire = setInterval(() => { const p = { x: R.x, y: R.y + rk.position.y + 0.2, z: R.z }; particles(p, 0xff8a30, 4, { speed: 4, up: -0.6, grav: 4, life: 0.5, size: 0.8 }); particles(p, 0xb8bccc, 3, { speed: 3, up: 0.2, grav: -1, life: 1.4, size: 1.6 }); }, 60);
+    await csSay('', 'IGNITION!', 900);
+    if (!CS.skip) await new Promise(res => tween(3.0, k => { const h = 55 * k * k; rk.position.y = h; CS.lookT.set(R.x, R.y + h + 6, R.z); CS.camT.set(R.x + 16, R.y + 4 + h * 0.6, R.z + 34); CS.rate = 6; }, res));
+    if (fire) clearInterval(fire);
+    const p = { x: R.x, y: R.y + 55, z: R.z };
+    rk.visible = false; rk.position.y = 0;
+    let debris = null;
+    if (!CS.skip) {
+        screenTint('#ffffff', 0.95, 420); triggerCameraShake(2.6);
+        fxFlash(p, 0xffffff, 46, 0.9); fxFlash(p, 0xff8a30, 30, 1.4);
+        ringFX(p, 0xffb84d, 2, 46, 1.3, false);
+        particles(p, 0xff8a30, 140, { speed: 32, life: 1.6, size: 1.4 }); particles(p, 0x55555e, 90, { speed: 16, life: 3, size: 2.4, grav: -0.5 });
+        debris = setInterval(() => particles({ x: R.x + (Math.random() - 0.5) * 20, y: R.y + 40 + Math.random() * 20, z: R.z + (Math.random() - 0.5) * 20 }, 0xffb040, 3, { speed: 2, grav: 9, life: 2, size: 0.6 }), 90);
+    }
+    await csWait(1800);
+    await csSay('', '...', 1400);
+    if (debris) clearInterval(debris);
+    const crew = ['Kaelen'].concat(F.map(m => m.def.name));
+    if (!reserves.length) {
+        await csTitle('NO ONE WAS LEFT ON THE GROUND', 2800);
+        csEnd({ x: R.x, z: R.z + 16 });
+        playDialogue([{ s: 'SYSTEM', t: `The rocket is gone, and everyone was aboard: ${crew.join(', ')}.` }, { s: 'SYSTEM', t: "There was no one left on the ground to carry the story." },
+            { s: 'THE END', t: "Your last save is waiting on the title screen. Perhaps next time, someone should stay behind." }], () => location.reload());
+        return;
+    }
+    for (const m of reserves) {
+        csShotA(m.actor, { dist: 4.4, h: 1.6, look: 2, fov: 40, yaw: Math.PI - 0.3, snap: true });
+        if (!CS.skip) csKneel(m.actor);
+        await csSay(SP(m.key), GRIEF[m.key] || '...');
+    }
+    await csTitle('IN MEMORY OF\n' + crew.join(' · ').toUpperCase(), 3200);
+    story.fallen = true; story.rocketLost = true; story.dead = F.map(m => m.key); story.heirs = reserves.map(m => m.key);
+    F.forEach(m => { const i = party.indexOf(m); if (i >= 0) party.splice(i, 1); m.actor.mesh.visible = false; m.actor.blob.visible = false; if (m.rideActor) { m.rideActor.mesh.visible = false; m.rideActor.blob.visible = false; } });
+    reserves.forEach(m => { m.active = true; m.guest = false; });
+    csEnd({ x: R.x, z: R.z + 16 });
+    setControl(story.heirs);
+    updateMinimap(); refreshStats(); setObjective();
+    const names = story.heirs.map(k => ALLY_DEFS[k].name).join(' and ');
+    const turn = story.heirs.find(k => k === 'nils') || story.heirs.find(k => k === 'cassius'), canTurn = !!turn && story.ending !== 'strike';
+    playDialogue([{ s: 'SYSTEM', t: `The rocket is gone, and with it ${crew.join(', ')}. The story now belongs to ${names}.` }].concat(canTurn ? TURN_LINES[turn] : []),
+        () => canTurn ? showChoice('The smoke drifts north, toward the Obsidian Gate.', [
+            { label: 'FIGHT ON FOR KAELEN', fn: () => { story.path = 'fight'; playDialogue([{ s: SP(turn), t: "...No. Kaelen would never forgive me. Vanguard answers for this, one way or another." }, { s: 'QUEST', t: 'Carry on what Kaelen started.' }], () => { setObjective(); autoSave(); }); } },
+            { label: 'REACH OUT TO VANGUARD', fn: () => darkPact(turn) }
+        ]) : (setObjective(), autoSave()));
+}
+
+// ---------- the pact ----------
+function joinSpecial(key) {
+    if (party.some(m => m.key === key)) return party.find(m => m.key === key);
+    const def = ALLY_DEFS[key], D = Object.assign({}, D0, def.look);
+    const a = makeActor(humanSet(D), 3.4 * (def.look.scale || 1), 0.85); csEquip(a, D);
+    const m = { key: key, def: def, actor: a, atkTex: a.atkR, poseUntil: 0 };
+    initAllyStats(m); grantGear(key); m.active = true; party.push(m);
+    if (story.heirs && story.heirs.indexOf(key) < 0) story.heirs.push(key);
+    setControl(story.heirs); updateMinimap();
+    return m;
+}
+async function darkPact(turn) {
+    story.path = 'ash';
+    const X = BASE.x, Z = BASE.z + 15.2, P = SP(turn), F = followers();
+    csBegin({ night: true });
+    csShot(SKY.x, SKY.z + 12, { dist: 10, h: 3, snap: true });
+    await csSay('', turn === 'nils' ? "Nils pries open the Skyreach radio and keys an old Raider frequency, one he swore he'd forgotten." : "Cassius keys an old Raider frequency on the Skyreach radio. His fingers still remember the code.", 3000);
+    await csSay(P, turn === 'nils' ? "Ivar. It's Nils. ...Meet me at the Gate." : "Vanguard. It's your old shieldbearer. Meet me at the Gate.", 2600);
+    placeActor(hero, X, Z + 2); hero.dir = 'up'; csUse(hero);
+    F.forEach((m, i) => { csUse(m.actor); placeActor(m.actor, X + 2 * (i + 1), Z + 3); m.actor.dir = 'up'; });
+    const van = makeActor({ down: MECHA.idle }, 7.6, 2.4); van.atkR = van.atkL = MECHA.attack; van.hurtR = van.hurtL = MECHA.flash; CS.cast.push(van); CS.temps.push(van);
+    placeActor(van, X, Z - 5); van.dir = 'down';
+    const beau = csActor(CAPTAIN_D, 4.0); placeActor(beau, X + 14, Z - 2); beau.dir = 'left';
+    csShot(X, Z - 1, { dist: 16, h: 4, look: 3, snap: true });
+    await csTitle('THE OBSIDIAN GATE', 1600);
+    await csDrop(van, 18, 0.6);
+    if (!CS.skip) { triggerCameraShake(1.4); ringFX({ x: X, y: groundAt(X, Z - 5) + 0.1, z: Z - 5 }, 0xff4a2e, 0.8, 9, 0.5, true); }
+    csShotA(van, { dist: 9, h: 1, look: 5, fov: 48, snap: true });
+    await csSay('VANGUARD', turn === 'nils' ? "Little brother. I wondered how long grief would take to walk you here." : "Shieldbearer. I wondered how long grief would take to walk you here.");
+    csShotA(hero, { dist: 4.2, h: 1.6, look: 2, fov: 38, yaw: Math.PI - 0.4, snap: true });
+    await csSay(P, "Kaelen is dead. The rocket...");
+    csShotA(van, { dist: 7, h: 0.8, look: 5, fov: 44, snap: true });
+    await csSay('VANGUARD', "...burned on its fifth flight. Yes. I know. I planned it.");
+    await csWalk(beau, X + 4, Z - 3, 5);
+    csShotA(beau, { dist: 4, h: 1.5, look: 2, fov: 38, yaw: -0.4, snap: true });
+    await csSay('BEAUREGARD', "Four flights to learn the professor's habits. One loose valve on the fifth. Nobody checks a valve that has never failed.");
+    csShotA(hero, { dist: 4, h: 1.6, look: 2, fov: 38, yaw: Math.PI - 0.4, snap: true });
+    await csSay(P, "You... murdered them.");
+    csShotA(van, { dist: 8, h: 1, look: 5, fov: 46, snap: true });
+    await csSay('VANGUARD', "I removed a question. Aldric's boy was teaching every village on this island to ask WHY. Questions are fire. You can't hold them. You can only burn first.");
+    await csSay('VANGUARD', "And you came anyway. Part of you already agrees. Grief is the only honest teacher I've ever had.");
+    csShot(csMid(hero, van).x, csMid(hero, van).z, { dist: 11, h: 3, look: 3, yaw: 0.3, snap: true });
+    await csSay(P, "...Tell me what to do, so it stops hurting.");
+    await csSay('VANGUARD', "Seven towns hid Aldric's books. Burn them, and the questions burn with them. Each town has kept one defender. The kind of person books create.");
+    await csSay('VANGUARD', "Brinewick. Emberhollow. Skyreach. Frostfall. Stoa Crossing. The Hermitage. And last, Valkora, where the boy was raised.");
+    await csSay('BEAUREGARD', "I'll be on the crag road. Prove you can keep up, and the blade is yours.", 2600);
+    await csWalk(beau, X + 16, Z + 6, 6);
+    await csSay('VANGUARD', "And I will ride with you. Let them see who stands with you now.");
+    csEnd({ x: X, z: Z + 3 });
+    story.dark = true; story.burned = story.burned || {};
+    joinSpecial('vanguard');
+    await hangarScene('vanguard');
+    playDialogue([{ s: 'PARTY', t: "VANGUARD JOINS THE PARTY! Ivar, warlord of the Obsidian Gate. OBSIDIAN CANNON and the war-machine OBSIDIAN." },
+        { s: 'THE ASH PATH', t: `Burn the seven towns. Each is defended by a protagonist out of Dostoevsky with DEF ${DEFENDER_DEF}. The wilds are full of angry villagers now, not monsters. Beauregard waits on the crag road near the Gate.` }],
+        () => { setObjective(); autoSave(); });
+}
+async function beauJoinScene() {
+    if (CS.on || inCombat || party.some(m => m.key === 'beauregard')) return;
+    story.beauMet = true;
+    const X = hero.mesh.position.x, Z = hero.mesh.position.z, F = followers();
+    csBegin({});
+    csUse(hero); hero.dir = 'right';
+    F.forEach((m, i) => { csUse(m.actor); placeActor(m.actor, X - 1.8 - i * 1.4, Z + 1 + i * 0.6); m.actor.dir = 'right'; });
+    const beau = csActor(CAPTAIN_D, 4.0); placeActor(beau, X + 5, Z - 2); beau.mesh.visible = false; beau.blob.visible = false; beau.dir = 'left';
+    csShot(X + 2, Z - 1, { dist: 12, h: 5, snap: true });
+    await csSay('', 'The crag road goes quiet. Then a red scarf drops out of the sky.', 2400);
+    await csDrop(beau, 16, 0.5);
+    csShotA(beau, { dist: 4.2, h: 0.6, look: 2.6, fov: 40, yaw: -0.3, snap: true });
+    await csSay('BEAUREGARD', `${burnedCount() ? 'I saw the smoke. ' : ''}So you really meant it.`);
+    await csSay('BEAUREGARD', "Last time someone walked this road, I was here to kill them. Funny how roads change direction.");
+    csShotA(hero, { dist: 4.2, h: 1.6, look: 2, fov: 38, yaw: 0.3, snap: true });
+    await csSay(SP(leaderKey()), "Just keep up.", 1800);
+    csEnd({ x: X, z: Z });
+    joinSpecial('beauregard');
+    await hangarScene('beauregard');
+    playDialogue([{ s: 'PARTY', t: "BEAUREGARD JOINS THE PARTY! Vanguard's blade. RED SCARF and the war-machine SCARLET." }], () => { setObjective(); autoSave(); });
+}
+
+// ---------- endings ----------
+async function ashEnding() {
+    const F = followers(), X = -2, Z = 16;
+    csBegin({ night: true, music: 'ballade' });
+    csUse(hero); placeActor(hero, X, Z); hero.dir = 'up';
+    F.forEach((m, i) => { csUse(m.actor); placeActor(m.actor, X + (i % 2 ? 2 : -2) * (1 + Math.floor(i / 2)), Z + 1.5); m.actor.dir = 'up'; });
+    csShot(X, Z - 6, { dist: 22, h: 8, look: 3, yaw: 0.4, snap: true });
+    await csTitle('VALKORA', 1800);
+    const van = party.some(m => m.key === 'vanguard'), heir = story.heirs.find(k => k === 'nils' || k === 'cassius') || story.heirs[0];
+    await csSay('', "The well where Aldric was buried glows orange. The whole village is ash and light.", 3000);
+    if (van) await csSay('VANGUARD', "It's done. Seven towns, and not one book left to ask why.");
+    csShotA(hero, { dist: 4, h: 1.6, look: 2, fov: 38, yaw: Math.PI - 0.3, snap: true });
+    await csSay(SP(heir), "Then why can I still hear them asking?");
+    if (van) await csSay('VANGUARD', "...Because you never burn the last copy. It's in us. It always was.");
+    csShot(X, Z, { dist: 30, h: 14, look: 2, yaw: -0.3, rate: 0.3, snap: true });
+    await csSay('', "'Pain and suffering are always inevitable for a large intelligence and a deep heart.' (Dostoevsky, Crime and Punishment)", 4200);
+    await csTitle('THE ASH ENDING', 3200);
+    csEnd({ x: X, z: Z });
+    story.ending = 'ash';
+    setObjective(); autoSave();
+    playDialogue([{ s: 'THE END', t: "You walked the Ash Path to its end. The island is quiet. Whether it is at peace is another question. You can keep exploring, or start a New Game to walk with Kaelen again." }]);
+}
+async function heirsVanguardFight() {
+    const me = SP(leaderKey());
+    playDialogue([
+        { s: 'VANGUARD', t: "So the boy's friends come in his place. I heard about the rocket. Such a fragile thing, a rocket." },
+        { s: me, t: "You did it. Didn't you." },
+        { s: 'VANGUARD', t: "Fifth flight. One loose valve. Beauregard is very patient." },
+        { s: me, t: "Then this ends now. For Kaelen." }
+    ], () => startCombat('warlord', 'crags'));
+}
+function heirsAftermath() {
+    story.warlordDown = true;
+    BASE_GATE.mesh.visible = false; BASE_GATE.box.on = false;
+    sentries.forEach(a => { a.mesh.visible = false; a.blob.visible = false; a.col.on = false; });
+    const me = SP(leaderKey()), nils = party.some(m => m.key === 'nils');
+    playDialogue([
+        { s: 'VANGUARD', t: "Enough... The boy would have spared me, you know. He was raised by a man who carried books into fire." },
+        { s: me, t: "Kaelen isn't here. That's the whole problem." }
+    ].concat(nils ? [{ s: 'NILS', t: "Ivar. Look at me. You can still take that armor off." }, { s: 'VANGUARD', t: "...Nils. Little brother. You got old." }] : []),
+    () => showChoice('What would Kaelen do?', [
+        { label: 'STRIKE HIM DOWN', fn: () => { story.ending = 'strike'; playDialogue([{ s: 'SYSTEM', t: "The reactor goes dark. The Obsidian Gate falls silent." }, { s: me, t: "...It doesn't bring him back." }], () => { setChapter(4); autoSave(); }); } },
+        { label: 'SPARE HIM', fn: () => { story.ending = 'spare'; playDialogue([{ s: me, t: "'The best way of avenging thyself is not to become like the wrong doer.' Kaelen's father underlined that. Kaelen did too." }, { s: 'SYSTEM', t: "The Raiders withdraw over the northern sea. Somewhere, a rocket's worth of grief finally has somewhere to go." }], () => { setChapter(4); autoSave(); }); } }
+    ]));
+}
+function setObjective() {
+    let t;
+    if (story.dark) {
+        const left = TOWNS.filter(T => !(story.burned || {})[T.k]);
+        t = story.ending === 'ash' ? 'THE ASH ENDING. The island is yours to wander.' :
+            `THE ASH PATH: burn the towns that hid Aldric's books (${7 - left.length}/7). ${left.length > 1 ? 'Next: ' + left.filter(T => T.k !== 'valkora').map(T => T.name).join(', ') + '.' : 'Last: VALKORA.'}${party.some(m => m.key === 'beauregard') ? '' : ' Beauregard waits on the crag road near the Gate.'}`;
+    } else if (story.fallen && !story.warlordDown) t = story.ch >= 3 ? 'For Kaelen: face Vanguard at the Obsidian Gate.' : 'For Kaelen: ' + objectiveText();
+    else t = objectiveText();
+    $('objective').innerText = 'OBJECTIVE: ' + t;
+}
+
+// ==========================================
 // 15. SETTINGS, SAVE / LOAD & TITLE SCREEN
 // ==========================================
 const SET_KEY = 'aethelgard_settings_v1', SAVE_KEY = 'aethelgard_save_v1';
@@ -6637,7 +7112,7 @@ function savePos() {
     }
     return { pos: { x: h.x, z: h.z }, zone: null };
 }
-function canSave() { return !(TITLE.on || CS.on || inCombat || Mini.active || transitioning || CONTROL); }
+function canSave() { return !(TITLE.on || CS.on || inCombat || Mini.active || transitioning || (CONTROL && !(story.heirs && CONTROL.keys.join() === story.heirs.join()))); }
 function saveGame(silent) {
     if (!canSave()) { if (!silent) showDialogue("You can't save right now. Finish what you're doing first.", 'SAVE'); return false; }
     const P = savePos();
@@ -6666,15 +7141,21 @@ function loadGame() {
     d.inv.forEach(id => { const it = hiddenItemsList.find(x => x.id === id); if (it) inventory.push(it); });
     d.chests.forEach(id => { const it = hiddenItemsList.find(x => x.id === id); if (!it) return; it.found = true; const ch = chestMeshes.find(c => c.data === it); if (ch) openChest(ch); });
     d.talked.forEach((t, i) => { if (npcList[i]) npcList[i].talked = !!t; });
+    (story.dead || []).forEach(k => { const n = npcList.find(x => x.ally === k); if (n) { n.joined = true; if (n.actor) { n.actor.mesh.visible = false; n.actor.blob.visible = false; } if (n.tag) n.tag.visible = false; if (n.mark) n.mark.visible = false; if (n.col) n.col.on = false; } });
     d.party.forEach(p => {
-        const n = npcList.find(x => x.ally === p.key); if (!n || n.joined) return;
+        const n = npcList.find(x => x.ally === p.key);
+        if (!n && ALLY_DEFS[p.key]) { const m = joinSpecial(p.key); m.active = p.active; Object.assign(m.st, p.st); return; }
+        if (!n || n.joined) return;
         const m = joinAlly(n); m.active = p.active; m.guest = p.guest; Object.assign(m.st, p.st);
     });
+    if (story.rocketLost && SKY_ROCKET) SKY_ROCKET.rocket.visible = false;
+    if (story.dark) TOWNS.forEach(T => { if ((story.burned || {})[T.k]) applyBurn(T); });
     replaceObj(EQUIP, d.EQUIP); replaceObj(GEAR_STATE, d.GEAR_STATE);
     if (story.warlordDown) { BASE_GATE.mesh.visible = false; BASE_GATE.box.on = false; sentries.forEach(a => { a.mesh.visible = false; a.blob.visible = false; a.col.on = false; }); }
     if (d.zone === 'station') { zoneReturn = d.zret || { x: SKY.x, z: SKY.z - 3 }; enterZoneNow('station'); }
     else { const p = d.pos || { x: 2, z: 6 }, q = { x: p.x, z: p.z }; resolveCollisions(q, HERO_R); placeActor(hero, q.x, q.z); hero.dir = 'down'; }
     camGround = groundAt(hero.mesh.position.x, hero.mesh.position.z);
+    setControl(story.heirs || null);
     resetTrail(); refreshStats(); setChapter(story.ch); setObjective(); updateBiomeLocationText(); updateMinimap(); checkProximity();
     Music.setMood(worldMood());
     return true;
