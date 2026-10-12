@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
     <title>Aethelgard: The Search for Meaning</title>
     <style>
         :root {
@@ -24,8 +24,10 @@
         :root[data-theme="dark"] { --hud-bg: rgba(10, 15, 30, 0.92); --hud-glow: rgba(58, 117, 196, 0.5); }
         html { scroll-padding-top: env(safe-area-inset-top, 0px); }
 
-        * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; -webkit-user-select: none; }
-        body, html { width: 100%; height: 100%; overflow: hidden; background-color: #000; font-family: 'Courier New', monospace; touch-action: none; }
+        * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
+        canvas, #canvas-container, #game-container { touch-action: none; }
+        input[type=range] { touch-action: pan-x; }
+        body, html { width: 100%; height: 100%; overflow: hidden; background-color: #000; font-family: 'Courier New', monospace; touch-action: none; -webkit-text-size-adjust: 100%; overscroll-behavior: none; }
 
         #game-container { position: relative; width: 100%; height: 100%; }
         #canvas-container { width: 100%; height: 100%; }
@@ -6063,7 +6065,7 @@ async function runOpening() {
     csShotA(aldric, { dist: 3.2, h: 1.2, look: 1.3, fov: 32, yaw: 0.35, rate: 0.5 });  // slow push-in
     await csSay('ALDRIC', "Kaelen... listen to me. Don't let anger do your thinking for you.", 3800);
     csShot(-2.2, 6.6, { dist: 7, h: 2.2, yaw: 0.3, snap: true });
-    await csSay('BEAUREGARD', "Touching.", 1400);
+    await csSay('BEAUREGARD', "This is what happens to people who think they're above answering our questions.", 3200);
     csPose(beau, beau.atkL, 650);
     await csWait(250);
     if (!CS.skip) { slashFX(hitPos(aldric), true, 0xffffff); slashFX(hitPos(aldric), true, 0xff4a4a); triggerCameraShake(1.2); }
@@ -6721,12 +6723,28 @@ const Music = (() => {
     return {
         dry: null,
         start() {
-            if (started) return;
-            started = true;
-            try { build(); } catch (e) { return; }
-            applyMood(pending || mood);
-            timer = setInterval(tick, 60);
+            if (!started) {
+                started = true;
+                try { if (navigator.audioSession) navigator.audioSession.type = 'playback'; } catch (e) { }
+                try { build(); } catch (e) { started = false; return; }
+                applyMood(pending || mood);
+                timer = setInterval(tick, 60);
+            }
+            this.unlock();
         },
+        // mobile browsers keep audio suspended until a real tap: resume (and play a silent blip) on every gesture until it runs
+        unlock() {
+            if (!ctx || ctx.state === 'running') return;
+            try { ctx.resume(); const b = ctx.createBuffer(1, 1, 22050), src = ctx.createBufferSource(); src.buffer = b; src.connect(ctx.destination); src.start(0); } catch (e) { }
+        },
+        restart(m) {
+            this.start();
+            if (!ctx) { pending = m; mood = m; return; }
+            const tok = ++moodTok; mood = m;
+            master.gain.cancelScheduledValues(ctx.currentTime); master.gain.setValueAtTime(master.gain.value, ctx.currentTime); master.gain.linearRampToValueAtTime(0.0001, ctx.currentTime + 0.3);
+            setTimeout(() => { if (tok === moodTok) applyMood(m); }, 320);
+        },
+        get running() { return !!ctx && ctx.state === 'running'; },
         setMood(m) {
             if (!THEMES[m] || m === mood && started) return;
             if (!ctx) { pending = m; mood = m; return; }
@@ -6753,7 +6771,15 @@ const Music = (() => {
         get playing() { return !!ctx && enabled; }
     };
 })();
-['pointerdown', 'keydown'].forEach(ev => window.addEventListener(ev, () => Music.start(), { once: true }));
+['pointerdown', 'pointerup', 'touchend', 'click', 'keydown'].forEach(ev => window.addEventListener(ev, () => { if (!Music.running) Music.start(); }, { capture: true, passive: true }));
+document.addEventListener('visibilitychange', () => { if (!document.hidden) Music.unlock(); });
+// no pinch / double-tap zoom, no long-press copy menu, no text selection (keeps the game feeling like an app, e.g. on GitHub Pages)
+['gesturestart', 'gesturechange', 'gestureend'].forEach(ev => document.addEventListener(ev, e => e.preventDefault(), { passive: false }));
+document.addEventListener('dblclick', e => e.preventDefault(), { passive: false });
+document.addEventListener('touchmove', e => { if (e.touches && e.touches.length > 1) e.preventDefault(); }, { passive: false });
+document.addEventListener('contextmenu', e => { if (!(e.target.closest && e.target.closest('input, textarea'))) e.preventDefault(); });
+document.addEventListener('selectstart', e => { if (!(e.target.closest && e.target.closest('input, textarea'))) e.preventDefault(); });
+document.addEventListener('copy', e => e.preventDefault());
 
 ALLY_STORY.silver = ["I was born on the Halcyon Orb. My mother too, and hers. Eleven kilometers around: you can walk the whole world before lunch.",
     "Every night I watched your planet turn below us. Storms the size of my whole home. Oceans! I've never even seen a puddle.",
@@ -7417,6 +7443,7 @@ function hideTitle() {
 }
 function titleNew() {
     Music.start();
+    if (SETTINGS.music === 'on') Music.restart('ballade');
     const go = () => { $('confirm-panel').style.display = 'none'; hideTitle(); startNewGame(); };
     if (!readSave()) { go(); return; }
     $('confirm-title').innerText = 'NEW GAME?';
