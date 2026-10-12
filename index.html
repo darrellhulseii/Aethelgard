@@ -2503,6 +2503,46 @@ BESTIARY.ice_colossus = { name: 'ICE COLOSSUS', body: 'golem', fur: true, pal: [
     zoneFoe('decks', ['mecha_scout', 'rust_drone'], DK.x + 8, DK.z - 4);
     zoneFoe('decks', ['rust_drone', 'mecha_scout', 'rust_drone'], DK.x, DK.z + 12);
     zoneExit(DK, DK.x, DK.z + 30, 'CLIMB BACK TO THE PLAZA');
+    // ---- the Skyward Gardens: a glass dome of trees, ponds and star-seeds (opens on the second visit) ----
+    const GD = ZONES.gardens = { key: 'gardens', name: 'SKYWARD GARDENS', x: -3000, z: -500, r: 40, biome: 'station', stage: 'station', space: true, noRide: true, music: 'field', spawn: { x: -3000, z: -466 } };
+    zoneFloor(GD, 0x3f7a4a, 0x7dffb4);
+    const glass = new THREE.Mesh(new THREE.SphereGeometry(46, 32, 14, 0, Math.PI * 2, 0, Math.PI / 2), new THREE.MeshStandardMaterial({ color: 0xbfe8ff, transparent: true, opacity: 0.1, side: THREE.DoubleSide, depthWrite: false, roughness: 0.05 }));
+    glass.position.set(GD.x, 0, GD.z); scene.add(glass);
+    const rim = new THREE.Mesh(new THREE.TorusGeometry(46, 0.5, 8, 80), new THREE.MeshBasicMaterial({ color: 0x5ff3ff })); rim.rotation.x = Math.PI / 2; rim.position.set(GD.x, 0.4, GD.z); scene.add(rim);
+    for (let i = 0; i < 8; i++) { const a = i / 8 * Math.PI; const rib = new THREE.Mesh(new THREE.TorusGeometry(46, 0.18, 6, 48, Math.PI), new THREE.MeshBasicMaterial({ color: 0x8fd8ff, transparent: true, opacity: 0.35 })); rib.position.set(GD.x, 0, GD.z); rib.rotation.y = a; scene.add(rib); }
+    const keep = [[GD.x, GD.z, 9], [GD.x, GD.z + 34, 7], [GD.x + 14, GD.z + 10, 7], [GD.x - 6, GD.z + 20, 4]];
+    zoneScatter(GD, treeOak(0x5cb84a), matProp, 22, 0.9, 1.5, 0.5, keep);
+    zoneScatter(GD, treeOak(0x8fd86a), matProp, 10, 0.7, 1.1, 0.4, keep);
+    for (let r = 0; r < 4; r++) {             // hydroponic rows
+        const m = new THREE.Mesh(mergeGeos([[gBox(10, 0.9, 1.6, 0, 0.45, 0), 0x6b7686], [gBox(9.6, 0.25, 1.3, 0, 1.0, 0), 0x2d7a3a]].concat([...Array(8)].map((_, k) => [gSph(0.35, -4.2 + k * 1.2, 1.3, 0), k % 2 ? 0xff6ad5 : 0xffd24a]))), matProp);
+        m.position.set(GD.x - 22, 0, GD.z - 14 + r * 4); scene.add(m); addBox(GD.x - 22, GD.z - 14 + r * 4, 10, 1.6);
+        const strip = new THREE.Mesh(mergeGeos([[gBox(10, 0.06, 0.12, 0, 0.92, 0.82), 0x7dffb4]]), matLit); strip.position.copy(m.position); scene.add(strip);
+    }
+    const pond = new THREE.Mesh(new THREE.CircleGeometry(5.5, 28).rotateX(-Math.PI / 2), new THREE.MeshStandardMaterial({ color: 0x2f7ab0, roughness: 0.1, metalness: 0.2 }));
+    pond.position.set(GD.x + 14, 0.05, GD.z + 10); scene.add(pond); addCirc(GD.x + 14, GD.z + 10, 5);
+    [[1.5, 1], [-2, 2.5], [2.6, -2]].forEach(([dx, dz]) => { const l = new THREE.Mesh(new THREE.CircleGeometry(0.7, 10).rotateX(-Math.PI / 2), new THREE.MeshStandardMaterial({ color: 0x4aa03c })); l.position.set(GD.x + 14 + dx, 0.08, GD.z + 10 + dz); scene.add(l); });
+    [[-12, 8, 0x7dffb4], [10, -18, 0xff6ad5], [-26, 18, 0x5ff3ff], [26, -6, 0xffd24a], [-4, -26, 0xc99bff], [20, 24, 0x7dffb4]].forEach(([dx, dz, c]) => makeGlow(GD.x + dx, 1.2, GD.z + dz, c, 3, 0.3));
+    // the observatory telescope in the middle of the dome: STARLIGHT SEQUENCE
+    const tele = new THREE.Mesh(mergeGeos([[gCyl(2.2, 2.6, 0.8, 16, 0, 0.4, 0), 0x3a3f55], [gCyl(0.5, 0.7, 2.6, 10, 0, 2.1, 0), 0x6b7686], [gCyl(0.7, 0.9, 5, 12, 0, 0, 0).rotateZ(0.9).translate(1.2, 4.6, 0), 0xe8eef8]]), matProp);
+    tele.position.set(GD.x, 0, GD.z - 4); tele.castShadow = true; scene.add(tele); addCirc(GD.x, GD.z - 4, 2.4);
+    makeGlow(GD.x + 3, 6.4, GD.z - 4, 0x9fd2ff, 3, 0.2);
+    INTERACTS.push({ x: GD.x, z: GD.z - 0.6, r: 2.8, label: '[E] STARLIGHT SEQUENCE (mini-game)', act: () => Mini.starlight() });
+    GD.seeds = [];
+    [[-30, -8], [28, 14], [-14, 30], [18, -28], [-34, 22]].forEach(([dx, dz], i) => {
+        const x = GD.x + dx, z = GD.z + dz;
+        const s = new THREE.Mesh(new THREE.OctahedronGeometry(0.5, 0), new THREE.MeshBasicMaterial({ color: 0xffe08a })); s.position.set(x, 1.4, z); scene.add(s);
+        const g = makeGlow(x, 1.4, z, 0xffd24a, 2.6, 0.3);
+        const seed = { mesh: s, glow: g }; GD.seeds.push(seed);
+        animated.push(t => { s.rotation.y = t * 2; s.position.y = 1.4 + Math.sin(t * 2 + i) * 0.25; });
+        INTERACTS.push({ x: x, z: z, r: 2.4, label: () => Q.seeds.got[i] ? '' : '[E] GATHER A STAR-SEED', act: () => gatherSeed(i) });
+    });
+    outdoorNPC({ name: 'Gardener Juniper', quest: 'seeds', x: GD.x - 6, z: GD.z + 20, look: 'v1', lines: ["Silver's stories got everyone up here dreaming about soil. Real soil!", "The star-seeds have drifted all over the dome again. Five of them. Could you gather them for me?"] });
+    outdoorNPC({ name: 'Botanist Ferro', x: GD.x + 16, z: GD.z + 3, look: 'v2', lines: ["These koi have never seen a real river. Neither have I.", "Silver says rain falls on its own down there. I've been trying to replicate it. So far I've only managed 'damp'."] });
+    zoneExit(GD, GD.x, GD.z + 38, 'RIDE THE LIFT TO THE PLAZA');
+    // the lift from the plaza (opens after Silver's campfire)
+    const lift = new THREE.Mesh(mergeGeos([[gCyl(2, 2.2, 0.4, 18, 0, 0.2, 0), 0x3a3f55], [gBox(0.4, 5, 0.4, -1.8, 2.5, 0), 0x8a96a8], [gBox(0.4, 5, 0.4, 1.8, 2.5, 0), 0x8a96a8], [gBox(4, 0.4, 0.5, 0, 5, 0), 0x7dffb4]]), matProp);
+    lift.position.set(ST.x - 26, 0, ST.z + 6); scene.add(lift);
+    INTERACTS.push({ x: ST.x - 26, z: ST.z + 8, r: 2.8, label: () => story.campfire ? '[E] LIFT: SKYWARD GARDENS' : '[E] GARDEN LIFT', act: () => story.campfire ? enterZone('gardens') : showDialogue("The garden dome is closed for 'atmospheric tuning'. Maybe next visit.", 'LIFT') });
     // ---- Whisperpine Hollow (Lira alone): foggy snow pines ----
     const HW = ZONES.hollow = { key: 'hollow', name: 'WHISPERPINE HOLLOW', x: -3400, z: 0, r: 46, biome: 'snow', stage: 'snow', spawn: { x: -3400, z: 40 } };
     zoneFloor(HW, 0xeaf4ff, 0xc4d6ea);
@@ -4811,7 +4851,8 @@ const Q = {
     contest: { state: 'new', caught: 0 }, race: { state: 'new', best: 0 }, mine: { state: 'new' },
     armwrestle: { state: 'new', wins: 0 }, quiz: { state: 'new', best: 0 },
     corin: { state: 'new', marks: [false, false, false] }, ashes: { state: 'new', scrolls: 0, boss: false }, brothers: { state: 'new', boss: false },
-    blackout: { state: 'new', gens: 0 }
+    blackout: { state: 'new', gens: 0 },
+    seeds: { state: 'new', found: 0, got: [false, false, false, false, false] }, stars: { state: 'new', best: 0 }
 };
 const QUEST_INFO = {
     starbound: { name: 'Starbound', where: 'Professor Orrin, Skyreach', text: q => q.state === 'done' ? 'You reached the Halcyon Orb and met Silver.' : q.state === 'launch' ? 'All three Aether Cores delivered. Board the rocket at Skyreach!' :
@@ -4830,7 +4871,7 @@ function questAvailable(k) {
     const has = a => party.some(m => m.key === a);
     switch (k) {
         case 'corin': return has('lira'); case 'ashes': return has('cassius') && has('maren'); case 'brothers': return has('nils');
-        case 'blackout': return !!story.stationVisited; default: return true;
+        case 'blackout': return !!story.stationVisited; case 'seeds': case 'stars': return !!story.campfire; default: return true;
     }
 }
 function giveReward(lines, gold, extra) {
@@ -4873,6 +4914,13 @@ function questTalk(n) {
             if (q.state === 'active') return { pages: [pg('The entrance is right behind me. Good luck.')] };
             return { pages: [pg('My crew is back in the shafts, singing. You did that.')] };
         }
+        case 'seeds': {
+            const q = Q.seeds;
+            if (q.found >= 5 && q.state !== 'done') { q.state = 'done'; return { pages: [pg("All five! Oh, they're humming. These will grow into a garden for the world below. Silver can carry them down."), { s: 'REWARD', t: giveReward(['Juniper gives you a Hi-Potion bundle (x3).'], 450, () => { bag.hipotion = (bag.hipotion || 0) + 3; }) }] }; }
+            if (q.state === 'done') return { pages: [pg("The seedlings are sprouting already. Tell the world below we said hello.")] };
+            if (q.state === 'new') q.state = 'active';
+            return { pages: [pg(n.lines[0]), pg(n.lines[1]), pg(`Star-seeds so far: ${q.found}/5. They glow gold; you can't miss them.`)] };
+        }
         case 'blackout': {
             const q = Q.blackout;
             if (q.state === 'new') {
@@ -4901,7 +4949,7 @@ const Mini = {
         $('interact-prompt').style.display = 'none';
     },
     close() { if (this.active && this.active.raf) cancelAnimationFrame(this.active.raf); this.active = null; $('mini-modal').style.display = 'none'; checkProximity(); refreshStats(); },
-    key(k) { if (k === 'escape') { this.close(); return; } if (this.active && this.active.onKey && (k === 'e' || k === ' ' || k === 'enter')) this.active.onKey(); },
+    key(k) { if (k === 'escape') { this.close(); return; } if (this.active && this.active.onDigit && /^[1-6]$/.test(k)) { this.active.onDigit(+k - 1); return; } if (this.active && this.active.onKey && (k === 'e' || k === ' ' || k === 'enter')) this.active.onKey(); },
     // ---- fishing: stop the marker inside the green band three times ----
     fishing() {
         const st = this.active = { pos: 0, dir: 1, zone: 0.4, w: 0.24, speed: 0.75, hits: 0, miss: 0, last: performance.now(), drift: 1 };
@@ -5206,6 +5254,7 @@ function enterZone(key, keys) { fadeThen(() => enterZoneNow(key, keys)); }
 function leaveZoneNow(target) {
     const Z = currentZone;
     if (Z && Z.key === 'decks') { currentZone = ZONES.station; placeActor(hero, ZONES.station.x - 4, ZONES.station.z + 20); }
+    else if (Z && Z.key === 'gardens') { currentZone = ZONES.station; placeActor(hero, ZONES.station.x - 26, ZONES.station.z + 11); }
     else { currentZone = null; const back = target || zoneReturn; zoneReturn = null; placeActor(hero, back.x, back.z); }
     hero.dir = 'down';
     if (CONTROL) setControl(null); else resetTrail();
@@ -5384,21 +5433,30 @@ Object.assign(ART_ANIMS, {
 
 // ---------- the rocket ----------
 function rocketInteract() {
-    if (story.rocketLost) { showDialogue("Only a scorched launch pad remains. Professor Orrin hasn't spoken since the fifth flight.", 'SKYREACH'); return; }
+    if (story.rocketLost) { showDialogue("Only a scorched launch pad remains. Professor Orrin hasn't spoken since the third flight.", 'SKYREACH'); return; }
     const q = Q.starbound;
     if (q.state === 'launch' || story.stationVisited) { rocketLaunch(true); return; }
     showDialogue(q.state === 'new' ? 'A real rocket. Professor Orrin is standing right there; ask him about it.' : `The fuel gauge reads EMPTY. Aether Cores: ${Object.values(q.cores).filter(Boolean).length}/3.`, 'ROCKET');
 }
 async function rocketLaunch(up) {
     if (CS.on) return;
-    if (up) { story.flights = (story.flights || 0) + 1; if (story.flights >= 5) { rocketDisaster(); return; } }
+    if (up) { story.flights = (story.flights || 0) + 1; if (story.flights >= 3) { rocketDisaster(); return; } }
     const R = up ? SKY_ROCKET : STATION_ROCKET, D = up ? STATION_ROCKET : SKY_ROCKET, F = followers();
     csBegin({});
     csUse(hero); F.forEach(m => csUse(m.actor));
     placeActor(hero, R.x - 1, R.z + 6); hero.dir = 'up';
     F.forEach((m, i) => { placeActor(m.actor, R.x + 1.4 * (i + 1) - 1, R.z + 7.2); m.actor.dir = 'up'; });
     csShot(R.x, R.z + 3, { dist: 16, h: 4, look: 6, snap: true });
-    await csSay(up ? 'PROFESSOR ORRIN' : 'SILVER', up ? (story.flights === 4 ? "All aboard! ...Odd. The fuel valve was loose again this morning. Must be the goats. Strap in!" : "All aboard! Strap in, keep your arms inside the rocket, and try not to scream.") : "Home's that way. Well, YOUR home. Hold on!", 2800);
+    if (!up && story.campfire && !story.silverPromise && party.some(m => m.key === 'silver')) {
+        story.silverPromise = true;
+        const sv = party.find(m => m.key === 'silver').actor; csUse(sv); placeActor(sv, R.x + 2.6, R.z + 8); sv.dir = 'up';
+        csShotA(sv, { dist: 4, h: 1.5, look: 2, fov: 38, yaw: Math.PI - 0.4, snap: true });
+        await csSay('SILVER', "You know what's funny? Everyone down there pictures the Orb as a tin can. It's eleven kilometers around: gardens, observatories, decks nobody's mapped in years. It's actually HUGE up here.");
+        await csSay('SILVER', "But it isn't the world. Not like yours. I've only seen a corner of it.");
+        await csSay('SILVER', "Promise me something. After we've explored more of the world below, let's come back one more time. I want to tell my people all the stories, properly. Every one.");
+        csShot(R.x, R.z + 3, { dist: 16, h: 4, look: 6, snap: true });
+    }
+    await csSay(up ? 'PROFESSOR ORRIN' : 'SILVER', up ? (story.flights === 2 ? "All aboard! ...Odd. The fuel valve was loose this morning. Must be the goats. Strap in!" : "All aboard! Strap in, keep your arms inside the rocket, and try not to scream.") : "Home's that way. Well, YOUR home. Hold on!", 2800);
     await Promise.all([csWalk(hero, R.x, R.z + 3, 3)].concat(F.map(m => csWalk(m.actor, R.x, R.z + 3, 3))));
     hero.mesh.visible = false; hero.blob.visible = false; F.forEach(m => { m.actor.mesh.visible = false; m.actor.blob.visible = false; });
     csShot(R.x, R.z, { dist: 22, h: 1.2, look: 9, fov: 42, snap: true });
@@ -5434,6 +5492,8 @@ async function rocketLaunch(up) {
     csEnd({ x: D.x, z: D.z + 6.5 });
     applyEnv();
     if (up && Q.blackout.state === 'new') showDialogue('Welcome to the Halcyon Orb! Talk to Chief Avery and the girl with silver hair.', 'STATION');
+    if (up && !story.campfire && (story.flights || 0) >= 2 && party.some(m => m.key === 'silver' && !m.guest)) silverCampfire();
+    if (!up && story.silverPromise && !story.promiseNoted) { story.promiseNoted = true; showDialogue('Silver wants to ride the rocket up one more time, after you have explored more of the world below.', 'PROMISE'); }
 }
 
 // ---------- menus: quests and party tabs ----------
@@ -6707,7 +6767,176 @@ updateMinimap();
 checkProximity();
 animate();
 // ==========================================
-// 14b. THE FIFTH FLIGHT: the rocket disaster, the heirs, and the Ash Path
+// 14a. THE SECOND VISIT: Silver's campfire, the Skyward Gardens, Starlight Sequence
+// ==========================================
+Object.assign(QUEST_INFO, {
+    seeds: { name: 'Seeds for the Ground', where: 'Gardener Juniper, Skyward Gardens (Halcyon Orb)', text: q => q.state === 'done' ? 'Juniper is growing a garden for the world below.' : `Gather the drifting star-seeds in the garden dome (${q.found}/5), then return to Juniper.` },
+    stars: { name: 'Starlight Sequence', where: 'The telescope, Skyward Gardens', text: q => q.state === 'done' ? `Mapped the whole constellation. Best: ${q.best} stars.` : `Repeat the telescope's star patterns up to 8 stars long (best: ${q.best}).` }
+});
+function gatherSeed(i) {
+    const q = Q.seeds; if (q.got[i]) return;
+    q.got[i] = true; q.found = q.got.filter(Boolean).length;
+    const s = ZONES.gardens.seeds[i]; s.mesh.visible = false; s.glow.visible = false;
+    particles({ x: s.mesh.position.x, y: 1.4, z: s.mesh.position.z }, 0xffd24a, 16, { speed: 4 });
+    if (q.state === 'new') q.state = 'active';
+    showDialogue(`STAR-SEED gathered! (${q.found}/5)${q.found >= 5 ? ' Bring them to Gardener Juniper.' : ''}`, 'GARDENS');
+}
+function applySeedState() { const G = ZONES.gardens; Q.seeds.got.forEach((g, i) => { if (g) { G.seeds[i].mesh.visible = false; G.seeds[i].glow.visible = false; } }); }
+
+// ---- mini-game: STARLIGHT SEQUENCE (watch the stars light up, then repeat the pattern) ----
+let sfxCtx = null;
+function starTone(i, ok) {
+    try {
+        if (!sfxCtx) sfxCtx = new (window.AudioContext || window.webkitAudioContext)();
+        const t = sfxCtx.currentTime, o = sfxCtx.createOscillator(), g = sfxCtx.createGain(), v = 0.12 * (SETTINGS.vol / 100);
+        o.type = ok === false ? 'sawtooth' : 'sine'; o.frequency.value = ok === false ? 140 : [523, 587, 659, 784, 880, 1047][i];
+        g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(v, t + 0.01); g.gain.exponentialRampToValueAtTime(0.0001, t + (ok === false ? 0.5 : 0.45));
+        o.connect(g); g.connect(sfxCtx.destination); o.start(t); o.stop(t + 0.6);
+    } catch (e) { }
+}
+Mini.starlight = function () {
+    const S = [[150, 34], [232, 70], [250, 152], [168, 190], [70, 160], [52, 78]];
+    const st = this.active = { seq: [], idx: 0, phase: 'idle', lit: -1, litUntil: 0, round: 0 };
+    this.open('STARLIGHT SEQUENCE',
+        `<canvas id="sl-c" width="300" height="224" style="width:100%;max-width:300px;display:block;margin:6px auto;touch-action:none;background:radial-gradient(#0e1838,#03050e);border:1px solid #2c4a7a;border-radius:6px;cursor:pointer"></canvas><div id="mini-msg">The telescope shows a pattern of stars. Watch, then repeat it: tap the stars or press 1-6.</div><div id="mini-score">Reach 8 stars to chart the constellation. Best: ${Q.stars.best}</div>`,
+        [['START [E]', () => start()], ['QUIT [ESC]', () => this.close()]]);
+    const cv = $('sl-c'), g = cv.getContext('2d');
+    const draw = now => {
+        if (this.active !== st) return;
+        g.clearRect(0, 0, 300, 224);
+        g.strokeStyle = 'rgba(143,216,255,0.25)'; g.lineWidth = 1.5; g.beginPath(); S.forEach(([x, y], i) => i ? g.lineTo(x, y) : g.moveTo(x, y)); g.closePath(); g.stroke();
+        S.forEach(([x, y], i) => {
+            const on = st.lit === i && now < st.litUntil, r = on ? 22 : 11;
+            const grd = g.createRadialGradient(x, y, 0, x, y, r * 1.8); grd.addColorStop(0, on ? '#ffffff' : '#cfe8ff'); grd.addColorStop(0.35, on ? '#ffd24a' : 'rgba(95,243,255,0.6)'); grd.addColorStop(1, 'rgba(0,0,0,0)');
+            g.fillStyle = grd; g.beginPath(); g.arc(x, y, r * 1.8, 0, 7); g.fill();
+            g.fillStyle = '#9fb4d8'; g.font = '10px Courier New'; g.fillText(String(i + 1), x + 13, y + 16);
+        });
+        st.raf = requestAnimationFrame(draw);
+    };
+    st.raf = requestAnimationFrame(draw);
+    const flash = i => { st.lit = i; st.litUntil = performance.now() + 380; starTone(i); };
+    const play = () => {
+        st.phase = 'show'; $('mini-msg').innerText = `Watch... (${st.seq.length} stars)`;
+        st.seq.forEach((s, k) => setTimeout(() => { if (this.active === st) flash(s); }, 520 * k + 400));
+        setTimeout(() => { if (this.active !== st) return; st.phase = 'input'; st.idx = 0; $('mini-msg').innerText = 'Your turn!'; }, 520 * st.seq.length + 500);
+    };
+    const start = () => { if (st.phase === 'show' || st.phase === 'input') return; st.seq = [0, 0, 0].map(() => Math.floor(Math.random() * 6)); play(); };
+    const press = i => {
+        if (this.active !== st || st.phase !== 'input') return;
+        flash(i);
+        if (st.seq[st.idx] !== i) {
+            st.phase = 'idle'; starTone(0, false);
+            const got = st.seq.length - 1; Q.stars.best = Math.max(Q.stars.best, got);
+            if (Q.stars.state === 'new') Q.stars.state = 'active';
+            $('mini-msg').innerText = `The pattern fades. You charted ${got} stars. Press START to try again.`; $('mini-score').innerText = `Best: ${Q.stars.best}`;
+            return;
+        }
+        st.idx++;
+        if (st.idx >= st.seq.length) {
+            if (st.seq.length >= 8) {
+                st.phase = 'idle'; Q.stars.best = 8;
+                const first = Q.stars.state !== 'done'; Q.stars.state = 'done';
+                $('mini-msg').innerHTML = first ? '<b>CONSTELLATION CHARTED!</b> ' + giveReward(['The station astronomers name it "The Groundsiders". You receive 2 Elixirs.'], 500, () => { bag.elixir = (bag.elixir || 0) + 2; }) : 'Charted again! ' + giveReward(['Prize:'], 80);
+                return;
+            }
+            st.phase = 'wait'; $('mini-msg').innerText = 'Perfect!'; $('mini-score').innerText = `${st.seq.length} stars charted. Best: ${Math.max(Q.stars.best, st.seq.length)}`;
+            st.seq.push(Math.floor(Math.random() * 6));
+            setTimeout(() => { if (this.active === st) play(); }, 700);
+        }
+    };
+    st.onKey = start; st.onDigit = press;
+    cv.addEventListener('pointerdown', e => {
+        const r = cv.getBoundingClientRect(), x = (e.clientX - r.left) * 300 / r.width, y = (e.clientY - r.top) * 224 / r.height;
+        let best = -1, bd = 34; S.forEach(([sx, sy], i) => { const d = Math.hypot(sx - x, sy - y); if (d < bd) { bd = d; best = i; } });
+        if (best >= 0) press(best);
+    });
+};
+
+// ---- Silver's campfire on the Orb ----
+let STATION_FIRE = false;
+function buildStationCampfire() { if (STATION_FIRE) return; STATION_FIRE = true; const ST = ZONES.station; campfire(ST.x + 1, ST.z + 4); [[-2.6, 4], [4.6, 4], [1, 7.6]].forEach(([dx, dz]) => { const l = new THREE.Mesh(mergeGeos([[gCyl(0.35, 0.35, 2.4, 8, 0, 0, 0).rotateZ(Math.PI / 2).translate(0, 0.35, 0), 0x6b4a2a]]), matProp); l.position.set(ST.x + dx, 0, ST.z + dz); l.rotation.y = Math.atan2(dz - 4, dx - 1) + Math.PI / 2; scene.add(l); }); }
+function smoreMesh() {
+    return new THREE.Mesh(mergeGeos([[gBox(0.9, 0.12, 0.9, 0, 0, 0), 0xc8975a], [gBox(0.78, 0.1, 0.78, 0, 0.11, 0), 0x4a2a14], [gBox(0.7, 0.26, 0.7, 0, 0.29, 0), 0xf8f0e0], [gBox(0.9, 0.12, 0.9, 0, 0.48, 0), 0xc8975a]]), matProp);
+}
+async function silverCampfire() {
+    if (CS.on) return;
+    story.campfire = true;
+    const ST = ZONES.station, C = { x: ST.x + 1, z: ST.z + 4 }, R = 4.4, back = { x: hero.mesh.position.x, z: hero.mesh.position.z };
+    const silver = party.find(m => m.key === 'silver'), stationNPCs = npcList.filter(n => ['Chief Avery', 'Quartermaster Bo', 'Station Kid Nova'].indexOf(n.name) >= 0);
+    buildStationCampfire();
+    csBegin({ night: true, hide: stationNPCs, hideParty: party, music: 'interior' });
+    const avery = csActor(Object.assign({}, D0, NEW_LOOKS.teacher), 3.4), bo = csActor(Object.assign({}, D0, NEW_LOOKS.keeper), 3.4), nova = csActor(Object.assign({}, D0, VILLAGER_LOOKS[4], { scale: 0.8 }), 2.8);
+    const res1 = csActor(Object.assign({}, D0, VILLAGER_LOOKS[1]), 3.3), res2 = csActor(Object.assign({}, D0, VILLAGER_LOOKS[3]), 3.3);
+    const crew = [hero].concat(party.filter(m => m !== silver).map(m => csUse(m.actor)));
+    const ring = [silver.actor].concat(crew.slice(0, 1), [avery, nova, bo, res1, res2], crew.slice(1));
+    csUse(hero); csUse(silver.actor);
+    const ang = a => Math.atan2(-Math.cos(a), -Math.sin(a));
+    ring.forEach((a, i) => {
+        const t = Math.PI / 2 + i / ring.length * Math.PI * 2, x = C.x + Math.cos(t) * R, z = C.z + Math.sin(t) * R;
+        placeActor(a, x, z); a.ringA = t;
+        const dx = -Math.cos(t), dz = -Math.sin(t); a.dir = Math.abs(dx) > Math.abs(dz) ? (dx > 0 ? 'right' : 'left') : (dz > 0 ? 'down' : 'up'); a.lockDir = true;
+    });
+    const props = [], close = a => csShotA(a, { dist: 3.8, h: 1.5, look: 1.9, fov: 38, yaw: ang(a.ringA), snap: true });
+    csShot(C.x, C.z, { dist: 14, h: 6, look: 1, yaw: 0.5, snap: true });
+    await csTitle('THE HALCYON ORB\nTHAT NIGHT', 2000);
+    close(silver.actor);
+    await csSay('SILVER', "Everyone, gather round! Chief, you too. I promised stories from the world below, and I keep my promises.");
+    await csSay('SILVER', "First: the ocean. It's real, Nova. It's bigger than the Orb, bigger than anything, and it's never still. It talks all night.");
+    close(nova); await csSay('STATION KID NOVA', "It TALKS?!", 1800);
+    close(silver.actor);
+    await csSay('SILVER', "And water falls out of the sky down there. They call it rain. Nobody turns it on. It just... happens. On your head!");
+    await csSay('SILVER', "There are trees older than this station. Mountains you can't see the top of. And snow: cold and soft, and every single flake is different.");
+    if (party.some(m => m.key === 'nils')) { close(party.find(m => m.key === 'nils').actor); await csSay('NILS', "Every flake. I've checked. Twenty winters of checking.", 2400); }
+    close(avery); await csSay('CHIEF AVERY', "Sixty years we've looked down at all that, and none of us ever stood in it.");
+    close(silver.actor);
+    await csSay('SILVER', "But the best thing I found down there... was THIS.");
+    // marshmallows on sticks over the fire
+    if (!CS.skip) ring.forEach(a => {
+        const p = a.mesh.position, dx = C.x - p.x, dz = C.z - p.z, d = Math.hypot(dx, dz), ux = dx / d, uz = dz / d;
+        const stick = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 3.2, 5).rotateZ(Math.PI / 2), new THREE.MeshStandardMaterial({ color: 0x8a6a3a }));
+        stick.position.set(p.x + ux * 1.8, groundAt(p.x, p.z) + 1.5, p.z + uz * 1.8); stick.rotation.y = -Math.atan2(uz, ux); scene.add(stick);
+        const mm = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.22, 0.4, 10).rotateZ(Math.PI / 2), new THREE.MeshStandardMaterial({ color: 0xfaf6ee, roughness: 0.9 }));
+        mm.position.set(p.x + ux * 3.3, groundAt(p.x, p.z) + 1.45, p.z + uz * 3.3); mm.rotation.y = stick.rotation.y; scene.add(mm);
+        props.push(stick, mm); a.mm = mm;
+    });
+    csShot(C.x, C.z, { dist: 7, h: 2.2, look: 1.2, yaw: 0.2, fov: 44, snap: true });
+    await csSay('CHIEF AVERY', "Is that... food? It looks like insulation.", 2200);
+    await csSay('SILVER', "Marshmallows! You hold one over the fire until it turns golden. Not black. Golden. Patience is the whole trick.");
+    if (!CS.skip) {
+        const c0 = new THREE.Color(0xfaf6ee), c1 = new THREE.Color(0xd89a48);
+        tween(2.4, k => ring.forEach(a => { if (a.mm) a.mm.material.color.copy(c0).lerp(c1, k); }));
+        particles({ x: C.x, y: 1.6, z: C.z }, 0xffb040, 24, { speed: 3, up: 1, life: 1.2 });
+    }
+    await csSay('', 'A ring of marshmallows slowly turns gold over the first open fire the Orb has ever seen.', 2800);
+    await csSay('SILVER', "Now squish it between two graham crackers with a square of chocolate, and...");
+    // s'mores appear over every head
+    if (!CS.skip) ring.forEach((a, i) => {
+        const s = smoreMesh(), p = a.mesh.position; s.position.set(p.x, groundAt(p.x, p.z) + 4.2, p.z); scene.add(s); props.push(s);
+        const y0 = s.position.y; tween(3.2, k => { s.rotation.y = k * 9 + i; s.position.y = y0 + Math.sin(k * 12 + i) * 0.15; });
+        particles({ x: p.x, y: y0, z: p.z }, 0xffe08a, 10, { speed: 3 });
+    });
+    ring.forEach(a => { if (a.mm) a.mm.visible = false; });
+    csShot(C.x, C.z, { dist: 11, h: 5, look: 2.5, yaw: -0.4, snap: true });
+    await csSay('SILVER', "S'MORES. The groundsiders call them s'mores!");
+    close(nova); await csSay('STATION KID NOVA', "It's... it's GOOEY! Why didn't anyone ever tell us about GOOEY?!");
+    close(bo); await csSay('QUARTERMASTER BO', "Sixty years of algae paste. Sixty YEARS. Silver, how many of these did you bring up here?");
+    close(avery); await csSay('CHIEF AVERY', "...Put me down for a crate. For research purposes.", 2400);
+    close(res1); await csSay('STATION RESIDENT', "My mouth is full of a cloud and I've never been happier.", 2400);
+    const pal = party.find(m => m.key === 'lira') || party.find(m => m.key === 'cassius') || party.find(m => m.key === 'maren');
+    if (pal) { close(pal.actor); await csSay(SP(pal.key), { lira: "You should see her toast them. She burns every single one on purpose.", cassius: "Seneca never wrote about chocolate. I think that was his greatest mistake.", maren: "Medically speaking, I recommend a second one." }[pal.key]); }
+    close(hero); await csSay(story.fallen ? SP(leaderKey()) : 'KAELEN', "Wait until she finds out about pie.", 2000);
+    close(silver.actor);
+    await csSay('SILVER', "I grew up looking down at that world and wondering what it felt like. Now I get to bring a little of it home.");
+    csShot(C.x, C.z, { dist: 20, h: 9, look: 1, yaw: 0.6, rate: 0.35, snap: true });
+    await csWait(2200);
+    props.forEach(o => scene.remove(o));
+    ring.forEach(a => { a.lockDir = false; a.mm = null; });
+    csEnd(back);
+    playDialogue([{ s: 'STATION', t: "Silver's stories spread through every corridor of the Orb. The SKYWARD GARDENS lift has opened (west side of the plaza): a dome of trees, a koi pond, star-seeds to gather and the STARLIGHT SEQUENCE telescope." }], () => autoSave());
+}
+
+// ==========================================
+// 14b. THE THIRD FLIGHT: the rocket disaster, the heirs, and the Ash Path
 // ==========================================
 const SP = k => k === 'maren' ? 'SISTER MAREN' : k === 'kaelen' ? 'KAELEN' : (ALLY_DEFS[k] ? ALLY_DEFS[k].name.toUpperCase() : k.toUpperCase());
 const shadeHex = (h, f) => { const n = parseInt(h.slice(1), 16), c = s => Math.max(0, Math.min(255, Math.round(((n >> s) & 255) * f))); return '#' + [16, 8, 0].map(s => c(s).toString(16).padStart(2, '0')).join(''); };
@@ -6741,7 +6970,7 @@ ALLY_ARTS.beauregard = [
         'RED SCARF': A('MOONLIGHT WALTZ'), 'TWIN CUT': A("HUNTER'S MARK"), 'CRAG AMBUSH': A('ARROW RAIN'), 'THE BLADE THAT HELD': A('STOA THRUST') }); })();
 ALLY_STORY.vanguard = ["My name was Ivar. Nils and I carved ice in Frostfall before I learned that fear builds walls faster than love does.",
     "Ashford, the burning, the books: I did all of it, and I'd tell you I was sorry if I thought sorrow changed anything.", "You came to me grieving. Grief is the only honest teacher I've ever had."];
-ALLY_STORY.beauregard = ["Twelve years holding Vanguard's blade. He gives the orders; I make them true.", "Four flights to learn the professor's habits. One loose valve on the fifth.", "Don't look at me like that. You're the ones carrying torches now."];
+ALLY_STORY.beauregard = ["Twelve years holding Vanguard's blade. He gives the orders; I make them true.", "Two flights to learn the professor's habits. One loose valve on the third.", "Don't look at me like that. You're the ones carrying torches now."];
 Object.assign(HANGAR_LINES, {
     vanguard: { pre: [['VANGUARD', "Come. Every warlord keeps one machine he never lets anyone see."]], awe: "That's the machine from every nightmare in the north.", line: ['VANGUARD', "OBSIDIAN has never lost a battle it chose. It chooses this one."] },
     beauregard: { pre: [['BEAUREGARD', "You want to know what twelve years of loyalty buys? Come look."]], awe: "It's... beautiful. Like a knife.", line: ['BEAUREGARD', "Time to show you what the scarf's been hiding."] }
@@ -6850,8 +7079,9 @@ async function rocketDisaster() {
     F.forEach((m, i) => { placeActor(m.actor, R.x + 1.4 * (i + 1) - 1, R.z + 7.2); m.actor.dir = 'up'; });
     reserves.forEach((m, i) => { placeActor(m.actor, R.x - 2.5 + i * 3, R.z + 18); m.actor.dir = 'up'; });
     csShot(R.x, R.z + 9, { dist: 18, h: 5, look: 4, snap: true });
-    await csSay('PROFESSOR ORRIN', "Flight number five! The old girl has never flown better. Strap in, everyone.", 2600);
+    await csSay('PROFESSOR ORRIN', "Flight number three! The old girl has never flown better. Strap in, everyone.", 2600);
     if (reserves.length) await csSay(SP(reserves[0].key), reserves.length > 1 ? "We'll hold the fort down here. Bring us back a piece of the sky." : "I'll keep watch down here. Bring me back a piece of the sky.", 2600);
+    if (F.some(m => m.key === 'silver') && story.silverPromise) await csSay('SILVER', "One more time. I'm going to tell them EVERYTHING.", 2400);
     await csSay('KAELEN', "Back before supper. Promise.", 2000);
     await Promise.all([csWalk(hero, R.x, R.z + 3, 3)].concat(F.map(m => csWalk(m.actor, R.x, R.z + 3, 3))));
     hero.mesh.visible = false; hero.blob.visible = false; F.forEach(m => { m.actor.mesh.visible = false; m.actor.blob.visible = false; });
@@ -6936,10 +7166,10 @@ async function darkPact(turn) {
     csShotA(hero, { dist: 4.2, h: 1.6, look: 2, fov: 38, yaw: Math.PI - 0.4, snap: true });
     await csSay(P, "Kaelen is dead. The rocket...");
     csShotA(van, { dist: 7, h: 0.8, look: 5, fov: 44, snap: true });
-    await csSay('VANGUARD', "...burned on its fifth flight. Yes. I know. I planned it.");
+    await csSay('VANGUARD', "...burned on its third flight. Yes. I know. I planned it.");
     await csWalk(beau, X + 4, Z - 3, 5);
     csShotA(beau, { dist: 4, h: 1.5, look: 2, fov: 38, yaw: -0.4, snap: true });
-    await csSay('BEAUREGARD', "Four flights to learn the professor's habits. One loose valve on the fifth. Nobody checks a valve that has never failed.");
+    await csSay('BEAUREGARD', "Two flights to learn the professor's habits. One loose valve on the third. Nobody checks a valve that has never failed.");
     csShotA(hero, { dist: 4, h: 1.6, look: 2, fov: 38, yaw: Math.PI - 0.4, snap: true });
     await csSay(P, "You... murdered them.");
     csShotA(van, { dist: 8, h: 1, look: 5, fov: 46, snap: true });
@@ -7009,7 +7239,7 @@ async function heirsVanguardFight() {
     playDialogue([
         { s: 'VANGUARD', t: "So the boy's friends come in his place. I heard about the rocket. Such a fragile thing, a rocket." },
         { s: me, t: "You did it. Didn't you." },
-        { s: 'VANGUARD', t: "Fifth flight. One loose valve. Beauregard is very patient." },
+        { s: 'VANGUARD', t: "Third flight. One loose valve. Beauregard is very patient." },
         { s: me, t: "Then this ends now. For Kaelen." }
     ], () => startCombat('warlord', 'crags'));
 }
@@ -7149,6 +7379,8 @@ function loadGame() {
         const m = joinAlly(n); m.active = p.active; m.guest = p.guest; Object.assign(m.st, p.st);
     });
     if (story.rocketLost && SKY_ROCKET) SKY_ROCKET.rocket.visible = false;
+    if (story.campfire) buildStationCampfire();
+    applySeedState();
     if (story.dark) TOWNS.forEach(T => { if ((story.burned || {})[T.k]) applyBurn(T); });
     replaceObj(EQUIP, d.EQUIP); replaceObj(GEAR_STATE, d.GEAR_STATE);
     if (story.warlordDown) { BASE_GATE.mesh.visible = false; BASE_GATE.box.on = false; sentries.forEach(a => { a.mesh.visible = false; a.blob.visible = false; a.col.on = false; }); }
