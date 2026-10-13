@@ -452,9 +452,13 @@ function mkCanvas(w, h) {
 // ==========================================
 // 1. WORLD DATA: layout, roads, landmarks, items, NPCs
 // ==========================================
-const terrainSize = 520;
-const terrainSegments = 208;
-const WORLD_LIMIT = 224;      // walkable half-extent (the coast starts just beyond this)
+const terrainSize = 800;
+const terrainSegments = 320;
+const WORLD_LIMIT = 224;      // the south coast (Valkora Pier side) stays exactly where it was
+const WORLD_E = 360, WORLD_W = 360, WORLD_N = 360, WORLD_S = WORLD_LIMIT;      // the island now reaches much further east, west and north
+const edgeOf = (x, z) => Math.max(x > 0 ? x - (WORLD_E - 224) : -x - (WORLD_W - 224), z > 0 ? z : -z - (WORLD_N - 224));   // what the coastline is shaped from
+const isFrontier = (x, z) => x > 236 || x < -236 || z < -236;                  // past the old coastline: the Frontier
+const SCATTER_K = (WORLD_W + WORLD_E) * (WORLD_N + WORLD_S) / (448 * 448);       // keeps scenery as dense as it was on the small map
 const SEA_Y = -1.4;
 const INTERIOR_X = 2000;      // interiors are built far east of the island, out of sight
 
@@ -659,9 +663,62 @@ const ARTS = [
     { name: 'EUDAIMONIA', seq: [1, 2, 3, 1, 3], mult: 6.0, fx: 'heal', src: 'Librarian Anselm, after the Three Insights', q: "Aristotle: 'One swallow does not make a summer, nor does one day.'" }
 ];
 const AP_COST = { 1: 1, 2: 2, 3: 3, 4: 2 };
-const FX_TEXT = { guard: 'Guard: halves the next blow', link: '+3 Link AP next turn', ep: '+12 EP', stun: 'Stuns the enemy for a turn', heal: 'Heals 25% HP', crit: 'Chaotic: up to +60% damage', drain: 'Drains 25% of damage as HP' };
+const FX_TEXT = { shred: 'Halves the target\'s armor for the battle', quakeAll: '50% chance to stagger every foe', bleedAll: 'Every foe bleeds 4% HP a round for 3 rounds', markAll: 'Marks every foe (+35% damage taken)', aegisAll: 'Guards and heals the whole party 10%', linkAll: '+3 Link AP for the whole party', execute: 'Finishes off a foe under 35% HP with a bonus blow', guard: 'Guard: halves the next blow', link: '+3 Link AP next turn', ep: '+12 EP', stun: 'Stuns the enemy for a turn', heal: 'Heals 25% HP', crit: 'Chaotic: up to +60% damage', drain: 'Drains 25% of damage as HP' };
 
 const story = { ch: 0, insights: { truth: false, fortitude: false, abyss: false }, warlordDown: false, beauDown: false, cribSeen: false, ending: null, wins: 0, read: {} };
+
+// ---------- THE FRONTIER: five new lands past the old coastline ----------
+const ASHFORD = { x: -58, z: -300 }, MAW = { x: -296, z: -200 }, WHITE = { x: 298, z: -298 }, DUNES = { x: 300, z: 84 }, ELDER = { x: -302, z: 100 };
+ROADS.push(
+    [[-45, -140], [-22, -190], [-30, -250], [-52, -286]],             // Old Ashford
+    [[-182, -66], [-228, -108], [-268, -160], [-292, -186]],          // The Maw
+    [[150, -150], [178, -212], [240, -268], [290, -290]],             // The White Silence
+    [[150, 150], [205, 146], [255, 112], [290, 88]],                  // The Glass Dunes
+    [[-150, 138], [-200, 126], [-255, 112], [-290, 102]]              // The Elderwood
+);
+ROAD_SIGNS.push(
+    "OLD ASHFORD: burned seventeen years ago. The Raiders call it a 'Zone of Historical Reconsideration'.",
+    "THE MAW: the mountain still breathes fire. Something walks in the caldera.",
+    "THE WHITE SILENCE: no birds sing past this post.",
+    "THE GLASS DUNES: the sand sings at noon. Mind the colossus.",
+    "THE ELDERWOOD: these trees were old before the island had a name.");
+SIGN_AT.push(30, 30, 30, 30, 30);
+PADS.push({ x: ASHFORD.x, z: ASHFORD.z, r: 26, h: 1.6 }, { x: MAW.x, z: MAW.z, r: 20, h: 3.0 }, { x: WHITE.x, z: WHITE.z, r: 22, h: 1.2 },
+    { x: DUNES.x, z: DUNES.z, r: 24, h: 0.4 }, { x: ELDER.x, z: ELDER.z, r: 24, h: 0.6 });
+PAVE.push({ x: ASHFORD.x, z: ASHFORD.z, r0: 14, r1: 22, c: 0x2e2a28, k: 0.9 }, { x: MAW.x, z: MAW.z, r0: 10, r1: 18, c: 0x3a1e18, k: 0.9 },
+    { x: WHITE.x, z: WHITE.z, r0: 10, r1: 18, c: 0xdff2ff, k: 0.85 }, { x: DUNES.x, z: DUNES.z, r0: 10, r1: 18, c: 0xe8d9a8, k: 0.85 },
+    { x: ELDER.x, z: ELDER.z, r0: 10, r1: 18, c: 0x24481f, k: 0.9 });
+PLACES.push({ x: ASHFORD.x, z: ASHFORD.z, r: 30, name: 'OLD ASHFORD (RUINS)' }, { x: MAW.x, z: MAW.z, r: 26, name: 'THE MAW' },
+    { x: WHITE.x, z: WHITE.z, r: 26, name: 'THE WHITE SILENCE' }, { x: DUNES.x, z: DUNES.z, r: 28, name: 'THE GLASS DUNES' },
+    { x: ELDER.x, z: ELDER.z, r: 28, name: 'THE ELDERWOOD' });
+hiddenItemsList.push(
+    { id: 12, name: "Printer's Drive", type: "ATK_BOOST", val: 25, x: ASHFORD.x + 24, z: ASHFORD.z - 20, found: false, desc: "+25 Permanent Attack Power" },
+    { id: 13, name: "Magma Drive", type: "HP_BOOST", val: 300, x: MAW.x - 22, z: MAW.z - 30, found: false, desc: "+300 Permanent Max HP" },
+    { id: 14, name: "Rime Drive", type: "DEF_BOOST", val: 25, x: WHITE.x + 22, z: WHITE.z - 24, found: false, desc: "+25 Permanent Armor Defense" },
+    { id: 15, name: "Mirage Drive", type: "EP_BOOST", val: 25, x: DUNES.x + 26, z: DUNES.z + 32, found: false, desc: "+25 Permanent EP Capacity" },
+    { id: 16, name: "Elder Drive", type: "AP_BOOST", val: 1, x: ELDER.x - 24, z: ELDER.z + 32, found: false, desc: "+1 Max AP per turn (longer combos)" });
+Object.assign(TEXTS, {
+    milton: { title: 'AREOPAGITICA', author: 'John Milton (1644)', pages: [
+        "A scorched page nailed to what is left of the printing house door:",
+        "\"As good almost kill a man as kill a good book. Who kills a man kills a reasonable creature, God's image; but he who destroys a good book, kills reason itself.\"",
+        "Scratched beneath it: 'They burned the press. They could not burn the people who remember how to build one.'"] },
+    inferno: { title: 'INFERNO, CANTO III', author: 'Dante Alighieri, trans. Henry Wadsworth Longfellow (1867)', pages: [
+        "Letters cut into black basalt, still warm to the touch:",
+        "\"All hope abandon, ye who enter in!\"",
+        "A pilgrim has chalked underneath: 'Or don't. The view is lovely.'"] },
+    mariner: { title: 'THE RIME OF THE ANCIENT MARINER', author: 'Samuel Taylor Coleridge (1817)', pages: [
+        "\"The ice was here, the ice was there, / The ice was all around: / It crack'd and growl'd, and roar'd and howl'd, / Like noises in a swound!\"",
+        "\"Water, water, every where, / Nor any drop to drink.\""] },
+    ozymandias: { title: 'OZYMANDIAS', author: 'Percy Bysshe Shelley (1818)', pages: [
+        "\"I met a traveller from an antique land / Who said: Two vast and trunkless legs of stone / Stand in the desert...\"",
+        "\"And on the pedestal these words appear: / 'My name is Ozymandias, king of kings: / Look on my works, ye Mighty, and despair!'\"",
+        "\"Nothing beside remains. Round the decay / Of that colossal wreck, boundless and bare / The lone and level sands stretch far away.\""] },
+    walking: { title: 'WALKING', author: 'Henry David Thoreau (1862)', pages: [
+        "\"I wish to speak a word for Nature, for absolute freedom and wildness...\"",
+        "\"In Wildness is the preservation of the World.\""] }
+});
+TABLETS.push({ x: ASHFORD.x - 2, z: ASHFORD.z + 22, key: 'milton' }, { x: MAW.x + 14, z: MAW.z + 14, key: 'inferno' }, { x: WHITE.x - 14, z: WHITE.z + 14, key: 'mariner' },
+    { x: DUNES.x - 16, z: DUNES.z + 12, key: 'ozymandias' }, { x: ELDER.x + 16, z: ELDER.z + 12, key: 'walking' });
 
 const signList = [];      // readable roadside signposts (filled while building the world)
 const KEEP_CLEAR = [];    // spots scenery must not cover
@@ -695,7 +752,7 @@ function terrainHeight(x, z) {
         const p = PADS[i];
         y = lerp(y, p.h, 1 - smooth(p.r, p.r + 14, Math.hypot(x - p.x, z - p.z)));
     }
-    const edge = Math.max(Math.abs(x), Math.abs(z));
+    const edge = edgeOf(x, z);
     y *= 1 - 0.75 * smooth(170, 228, edge);                                                                    // calm coast
     return y - smooth(212, 262, edge) * 8;                                                                     // slope into the sea
 }
@@ -743,7 +800,7 @@ function placedHit(x, z, gap) {
 }
 function isFree(x, z, extra) {
     extra = extra || 0;
-    if (Math.abs(x) > WORLD_LIMIT - 4 || Math.abs(z) > WORLD_LIMIT - 4) return false;
+    if (x > WORLD_E - 4 || x < -WORLD_W + 4 || z < -WORLD_N + 4 || z > WORLD_S - 4) return false;
     if (roadDist(x, z) < 5 + extra) return false;
     for (let i = 0; i < PADS.length; i++) { const p = PADS[i]; if (Math.hypot(x - p.x, z - p.z) < p.r + 6 + extra) return false; }
     for (let i = 0; i < KEEP_CLEAR.length; i++) { const k = KEEP_CLEAR[i]; if (Math.hypot(x - k.x, z - k.z) < k.r + extra) return false; }
@@ -790,9 +847,10 @@ function resolveCollisions(pos, R) {
 }
 function scatter(count, region, o) {
     o = o || {};
+    if (!o.local) count = Math.round(count * SCATTER_K);
     const out = [], gap = o.gap || 6, solo = o.solo !== false, minY = o.minY === undefined ? -0.2 : o.minY;
     for (let t = 0; t < count * 60 && out.length < count; t++) {
-        const x = rr(-WORLD_LIMIT, WORLD_LIMIT), z = rr(-WORLD_LIMIT, WORLD_LIMIT);
+        const x = rr(-WORLD_W, WORLD_E), z = rr(-WORLD_N, WORLD_S);
         if (!region(x, z) || !isFree(x, z, o.extra)) continue;
         const y = terrainHeight(x, z);
         if (y < minY) continue;
@@ -885,7 +943,7 @@ function groundColor(x, z, y, out) {
     if (dl < LAKE.r + 3) out.lerp(COL_ICE, 1 - smooth(LAKE.r - 2, LAKE.r + 3, dl));
     const dO = Math.hypot(x - OASIS.x, z - OASIS.z);
     if (dO < OASIS.r + 8) out.lerp(COL_OASIS, 0.55 * (1 - smooth(OASIS.r, OASIS.r + 8, dO)));
-    if (y < 0.9 && Math.max(Math.abs(x), Math.abs(z)) > 175) out.lerp(COL_BEACH, smooth(0.9, -0.4, y) * 0.9);   // beaches
+    if (y < 0.9 && edgeOf(x, z) > 175) out.lerp(COL_BEACH, smooth(0.9, -0.4, y) * 0.9);   // beaches
     if (y < SEA_Y + 0.3) out.multiplyScalar(0.7);
 }
 
@@ -1403,7 +1461,42 @@ const BIOME_ENEMIES = {
     crags: ['mecha_scout', 'ember_imp', 'obsidian_golem', 'ash_hound', 'shard_beetle'],
     snow: ['frost_slime', 'ice_wolf', 'yeti', 'snow_wisp', 'frost_bat']
 };
+// ---------- THE FRONTIER: tougher foes past the old coastline. Each carries two traits. ----------
+Object.assign(BESTIARY, {
+    dire_thornwolf:  { name: 'DIRE THORNWOLF', body: 'beast', pal: ['#3a4a2a', '#24301a', '#5a6a3a', '#2f7a35', '#ff3b30'], hp: 2900, dmg: [150, 205], xp: 74, trait: 'double', trait2: 'enrage', size: 1.15 },
+    rotcap_matriarch:{ name: 'ROTCAP MATRIARCH', body: 'plant', pal: ['#8a3aa8', '#5a2272', '#e8d0f0', '#b6ff5a', '#12162a'], hp: 3200, dmg: [140, 190], xp: 76, trait: 'poison', trait2: 'regen', size: 1.2 },
+    gloom_moth:      { name: 'GLOOM MOTH', body: 'flyer', fly: true, pal: ['#2a2a3a', '#14141e', '#5a5a7a', '#c45aff', '#ffd24a'], hp: 2400, dmg: [150, 200], xp: 72, trait: 'evade', trait2: 'siphon' },
+    heartwood_golem: { name: 'HEARTWOOD GOLEM', body: 'golem', pal: ['#4a3220', '#2e1f14', '#6b4a2a', '#7dffb4', '#7dffb4'], hp: 4200, dmg: [170, 230], xp: 96, trait: 'armor', trait2: 'thorns', size: 1.35 },
+    bog_horror:      { name: 'BOG HORROR', body: 'blob', spikes: true, pal: ['#3a4a2a', '#24301a', '#6a7a4a', '#c45aff', '#12162a'], hp: 3400, dmg: [140, 195], xp: 78, trait: 'regen', trait2: 'siphon', size: 1.2 },
+    glass_scorpion:  { name: 'GLASS SCORPION', body: 'bug', tail: true, pal: ['#e8f4ff', '#9ab8d0', '#ffffff', '#ff6ad5', '#12162a'], hp: 3000, dmg: [155, 210], xp: 78, trait: 'poison', trait2: 'armor', size: 1.15 },
+    sandstorm_djinn: { name: 'SANDSTORM DJINN', body: 'wisp', fly: true, pal: ['#e0b060', '#a87a30', '#fff0c8', '#ff6a2a', '#3a1a0a'], hp: 2600, dmg: [160, 215], xp: 76, trait: 'evade', trait2: 'enrage' },
+    sunstone_golem:  { name: 'SUNSTONE GOLEM', body: 'golem', pal: ['#d08a3a', '#9a5a22', '#f0c070', '#fff06a', '#fff06a'], hp: 4000, dmg: [170, 230], xp: 94, trait: 'charge', trait2: 'armor', size: 1.3 },
+    mirage_twin:     { name: 'MIRAGE TWIN', body: 'wisp', fly: true, pal: ['#c99bff', '#7a5ac0', '#f0e0ff', '#ffd27a', '#2a1a4a'], hp: 2500, dmg: [150, 205], xp: 74, trait: 'double', trait2: 'evade' },
+    war_drone:       { name: 'RAIDER WAR-DRONE', body: 'flyer', drone: true, fly: true, pal: ['#3a3a44', '#1e1e24', '#6a6a78', '#ff3b30', '#ff4a2e'], hp: 2800, dmg: [155, 215], xp: 78, trait: 'double', trait2: 'warded' },
+    magma_fiend:     { name: 'MAGMA FIEND', body: 'wisp', fly: true, pal: ['#ff4a1a', '#a8200a', '#ffd27a', '#ffffff', '#1a0a06'], hp: 2800, dmg: [160, 220], xp: 78, trait: 'poison', trait2: 'enrage' },
+    cinder_hound:    { name: 'CINDER HOUND', body: 'beast', pal: ['#2a2224', '#140e10', '#4a3a3a', '#ff6a1a', '#ffd24a'], hp: 3000, dmg: [165, 220], xp: 80, trait: 'double', trait2: 'enrage', size: 1.15 },
+    basalt_titan:    { name: 'BASALT TITAN', body: 'golem', pal: ['#1e1e24', '#0e0e12', '#3a3a44', '#ff6a1a', '#ff6a1a'], hp: 4400, dmg: [175, 240], xp: 100, trait: 'armor', trait2: 'charge', size: 1.4 },
+    mecha_enforcer:  { name: 'MECHA ENFORCER', body: 'mecha', hp: 3800, dmg: [170, 235], xp: 92, trait: 'charge', trait2: 'warded' },
+    ash_scarab:      { name: 'ASH SCARAB', body: 'bug', pal: ['#4a4a52', '#2a2a30', '#7a7a86', '#ff8a30', '#ffd24a'], hp: 3100, dmg: [150, 205], xp: 78, trait: 'thorns', trait2: 'siphon', size: 1.15 },
+    rime_warg:       { name: 'RIME WARG', body: 'beast', pal: ['#cfe8ff', '#7aa0c8', '#ffffff', '#2a8fd0', '#2a5a8a'], hp: 3000, dmg: [160, 215], xp: 80, trait: 'chill', trait2: 'double', size: 1.15 },
+    frost_wraith:    { name: 'FROST WRAITH', body: 'wisp', fly: true, pal: ['#e0f8ff', '#8ac8f0', '#ffffff', '#5a5aff', '#12162a'], hp: 2600, dmg: [155, 210], xp: 76, trait: 'chill', trait2: 'evade' },
+    glacier_colossus:{ name: 'GLACIER COLOSSUS', body: 'golem', pal: ['#bfeaff', '#7ab8e0', '#ffffff', '#2a8fd0', '#2a5a8a'], hp: 4300, dmg: [170, 235], xp: 98, trait: 'armor', trait2: 'regen', size: 1.4 },
+    blizzard_harpy:  { name: 'BLIZZARD HARPY', body: 'flyer', fly: true, pal: ['#8fb8e8', '#4a6e9e', '#ffffff', '#bff8ff', '#ffd24a'], hp: 2500, dmg: [150, 205], xp: 74, trait: 'evade', trait2: 'double' },
+    permafrost_ooze: { name: 'PERMAFROST OOZE', body: 'blob', pal: ['#7ac8f0', '#2a7ab0', '#ffffff', '#1a4a7a', '#12162a'], hp: 3300, dmg: [140, 195], xp: 76, trait: 'chill', trait2: 'regen', size: 1.2 },
+    // field bosses (drawn from these, fought through ENEMY_TYPES.fb_*)
+    colossus_m:      { name: 'CINDER COLOSSUS', body: 'golem', pal: ['#2a1e1c', '#140c0a', '#4a3a36', '#ff6a1a', '#ffd24a'], hp: 1, dmg: [1, 1], xp: 1, trait: 'none' },
+    rime_m:          { name: 'RIME TITAN', body: 'golem', fur: true, pal: ['#dff2ff', '#9ab8d8', '#ffffff', '#5ac8f0', '#1a3a6a'], hp: 1, dmg: [1, 1], xp: 1, trait: 'none' },
+    leviathan_m:     { name: 'DUNE LEVIATHAN', body: 'bug', tail: true, pal: ['#c9a46a', '#8a6a3a', '#fff0c8', '#ff3b30', '#12162a'], hp: 1, dmg: [1, 1], xp: 1, trait: 'none' },
+    treant_m:        { name: 'ELDER TREANT', body: 'golem', pal: ['#4a3220', '#2a1c10', '#6b4a2a', '#4aa03c', '#b8ffd8'], hp: 1, dmg: [1, 1], xp: 1, trait: 'none' }
+});
+const FRONTIER_ENEMIES = {
+    forest: ['dire_thornwolf', 'rotcap_matriarch', 'gloom_moth', 'heartwood_golem', 'bog_horror'],
+    desert: ['glass_scorpion', 'sandstorm_djinn', 'sunstone_golem', 'mirage_twin', 'war_drone'],
+    crags: ['magma_fiend', 'cinder_hound', 'basalt_titan', 'mecha_enforcer', 'ash_scarab'],
+    snow: ['rime_warg', 'frost_wraith', 'glacier_colossus', 'blizzard_harpy', 'permafrost_ooze']
+};
 const TRAIT_TEXT = {
+    enrage: 'ENRAGES below half HP: +50% damage', warded: 'WARDED: weapon hits do 40% less (Psyche and piercing arts cut through)', siphon: 'SIPHONS: heals half the damage it deals',
     regen: 'REGENERATES 6% HP each turn', double: 'ATTACKS TWICE', poison: 'POISONS on hit', evade: 'EVADES 25% of weapon hits (Psyche never misses)',
     armor: 'ARMORED: Light hits do half, Heavy hits +25%', thorns: 'THORNS: you take 8% of damage dealt', chill: 'CHILLS: -2 AP on your next turn', charge: 'CHARGES a huge blow every 3rd turn'
 };
@@ -1591,7 +1684,7 @@ const half = (list, k) => list.filter((_, i) => i % 2 === k);
     const dead = scatter(70, inCrags, { gap: 6, rad: 1.4, smin: 0.9, smax: 1.5 });
     instanced(deadTreeGeo(0x3b2f2a), matProp, dead, true); solidify(dead, 0.35);
     const shard = new THREE.OctahedronGeometry(1, 0); shard.scale(0.5, 2.2, 0.5); shard.translate(0, 1.6, 0);
-    const shards = scatter(46, (x, z) => inCrags(x, z) && Math.hypot(x - BASE.x, z - BASE.z) < 85, { gap: 4, rad: 1, smin: 0.7, smax: 1.5 });
+    const shards = scatter(46, (x, z) => inCrags(x, z) && Math.hypot(x - BASE.x, z - BASE.z) < 85, { gap: 4, rad: 1, smin: 0.7, smax: 1.5, local: true });
     shards.forEach(p => { p.tx = rr(-0.3, 0.3); p.tz = rr(-0.3, 0.3); });
     instanced(shard, new THREE.MeshBasicMaterial({ color: 0xff4a2e }), shards, false);                  // glowing red shards
 })();
@@ -2627,6 +2720,85 @@ const drifts = {
     embers: makeDrift({ count: 150, color: 0xff6a2a, size: 0.55, area: 70, height: 16, vx: 0.4, vy: 1.8, vz: 0.2, sway: 0.7, add: true, lift: 0 }),
     flies: makeDrift({ count: 120, color: 0xd8ff66, size: 0.7, area: 70, height: 3.4, vx: 0.15, vy: 0.1, vz: 0.1, sway: 1.2, add: true, pulse: true, lift: 0.4 })
 };
+
+// ---------- THE FRONTIER: Old Ashford, the Maw, the White Silence, the Glass Dunes, the Elderwood ----------
+(function buildFrontier() {
+    const put = (geo, mat, x, z, ry, y) => { const m = new THREE.Mesh(geo, mat || matProp); m.position.set(x, y === undefined ? groundAt(x, z) : y, z); m.rotation.y = ry || 0; m.castShadow = true; m.receiveShadow = true; scene.add(m); return m; };
+    const lava = new THREE.MeshBasicMaterial({ color: 0xff6a1a }), ice = new THREE.MeshStandardMaterial({ color: 0xbfeaff, roughness: 0.15, metalness: 0.1, transparent: true, opacity: 0.85, flatShading: true });
+    // OLD ASHFORD: the burned town where Aldric walked into the fire and came out carrying a baby
+    (() => {
+        const X = ASHFORD.x, Z = ASHFORD.z;
+        const wall = mergeGeos([[gBox(6, 3.2, 0.6, 0, 1.6, 0), 0x4a4440], [gBox(2.2, 1.6, 0.62, -1.4, 4.0, 0), 0x3a3430], [gBox(0.5, 4.6, 0.5, 2.8, 2.3, 0), 0x241e1a]]);
+        const corner = mergeGeos([[gBox(5, 2.4, 0.6, 0, 1.2, 0), 0x4a4440], [gBox(0.6, 3.6, 4.2, -2.2, 1.8, 2.1), 0x3e3834], [gBox(4.6, 0.3, 0.3, 0.3, 3.4, 1.8), 0x1e1a18]]);
+        [[-17, -12, 0.2, wall], [-5, -18, 0, corner], [12, -16, -0.3, wall], [19, -2, 1.5, corner], [-19, 4, 1.4, wall], [-9, 16, 3.0, corner], [15, 15, 0.4, wall]]
+            .forEach(([dx, dz, ry, g]) => { put(g, matProp, X + dx, Z + dz, ry); addCirc(X + dx, Z + dz, 2.6); });
+        put(mergeGeos([[gBox(3, 1.4, 2, 0, 0.7, 0), 0x3a3a40], [gCyl(0.5, 0.5, 2.8, 10, 0, 2.2, 0), 0x55555e], [gBox(3.4, 0.3, 0.6, 0, 3.4, 0), 0x2a2a30], [gBox(2.2, 0.08, 1.4, 0, 1.45, 0), 0xd8cfa8]]), matProp, X - 2, Z - 3, 0.3);
+        addCirc(X - 2, Z - 3, 1.9);
+        [[-11, -5], [7, 7], [-3, 11], [13, -7], [2, -12]].forEach(([dx, dz]) => { const gy = groundAt(X + dx, Z + dz); addSmoke(X + dx, gy + 1.5, Z + dz); makeGlow(X + dx, gy + 0.6, Z + dz, 0xff6a20, 2.6, 0.45); });
+        const pages = [];
+        for (let i = 0; i < 46; i++) { const a = rand() * 6.28, d = 3 + rand() * 19, x = X + Math.cos(a) * d, z = Z + Math.sin(a) * d; pages.push({ x: x, y: groundAt(x, z) + 0.06, z: z, r: rr(0, 6), s: rr(0.7, 1.3) }); }
+        instanced(gBox(0.5, 0.03, 0.7, 0, 0, 0), new THREE.MeshStandardMaterial({ color: 0xd8cfa8, roughness: 1 }), pages, false);
+        outdoorNPC({ name: 'Odile the Printer', x: X + 5, z: Z + 9, look: 'hermit', lines: ["I set type in Ashford for thirty years. They burned the press, the paper, the whole street. They couldn't burn what I remember.",
+            "A courier walked into the fire that night and came out with a baby wrapped in his coat. I never learned the child's name.",
+            "The Raiders put up a sign calling this a 'Zone of Historical Reconsideration.' Nothing happened here, according to them. I was here. Something happened."] });
+    })();
+    // THE MAW: a living volcano in the far north-west
+    (() => {
+        const X = MAW.x, Z = MAW.z, gy = groundAt(X, Z - 16);
+        put(mergeGeos([[gCyl(5, 15, 15, 11, 0, 7.5, 0), 0x2a1e1c], [gCyl(4.2, 5.2, 1.2, 11, 0, 15.2, 0), 0x3a2a26], [gCyl(3.8, 3.8, 0.2, 11, 0, 15.6, 0), 0xff6a1a]]), matProp, X, Z - 16, 0, gy - 0.5);
+        addCirc(X, Z - 16, 13.5);
+        makeGlow(X, gy + 17, Z - 16, 0xff5a1a, 16, 0.25); addSmoke(X, gy + 17, Z - 16); addSmoke(X + 2, gy + 16, Z - 15);
+        [[-9, 2, 2.4], [8, 4, 1.8], [-3, 9, 1.6], [12, -4, 2.0]].forEach(([dx, dz, r]) => {
+            const m = put(new THREE.CircleGeometry(r, 14), lava, X + dx, Z + dz, 0, groundAt(X + dx, Z + dz) + 0.08); m.rotation.x = -Math.PI / 2; m.castShadow = false;
+            makeGlow(X + dx, groundAt(X + dx, Z + dz) + 0.5, Z + dz, 0xff6a1a, r * 2.4, 0.3);
+        });
+        const rocks = [];
+        for (let i = 0; i < 18; i++) { const a = rand() * 6.28, d = 16 + rand() * 9, x = X + Math.cos(a) * d, z = Z - 6 + Math.sin(a) * d; rocks.push({ x: x, y: groundAt(x, z), z: z, s: rr(1, 2.2), r: rr(0, 6) }); addCirc(x, z, 1.2); }
+        rockInst(rocks, 0x2a2020);
+        outdoorNPC({ name: 'Pilgrim Sorrel', x: X + 8, z: Z + 12, look: 'v3', lines: ["Some climb to the Maw to throw their regrets into the fire. The mountain never gives them back.",
+            "Something huge walks the caldera at night. When it sleeps it cools to black stone, and you'd swear it was a hill."] });
+    })();
+    // THE WHITE SILENCE: a glacier field in the far north-east, with a king frozen in the ice
+    (() => {
+        const X = WHITE.x, Z = WHITE.z;
+        const crystal = (h, r) => mergeGeos([[gCone(r, h, 6, 0, h / 2, 0), 0xffffff]]);
+        [[-12, -10, 11, 1.8], [-6, -16, 15, 2.2], [4, -18, 13, 2.0], [13, -11, 10, 1.6], [16, 2, 8, 1.4], [-16, 4, 9, 1.5], [-9, 12, 6, 1.1], [10, 13, 7, 1.2]]
+            .forEach(([dx, dz, h, r], i) => { const m = put(crystal(h, r), ice, X + dx, Z + dz, i); m.rotation.z = (i % 3 - 1) * 0.12; addCirc(X + dx, Z + dz, r * 0.9); makeGlow(X + dx, groundAt(X + dx, Z + dz) + h * 0.6, Z + dz, 0x9fe8ff, 4, 0.15); });
+        put(mergeGeos([[gBox(4, 0.8, 4, 0, 0.4, 0), 0x8aa0b8], [gBox(1.8, 4.2, 1.2, 0, 2.9, 0), 0x6a7a8e], [gSph(0.9, 0, 5.6, 0), 0x6a7a8e], [gCone(0.8, 1.2, 5, 0, 6.6, 0), 0xc9a24a]]), matProp, X - 2, Z - 6);
+        put(new THREE.BoxGeometry(5, 8, 5), ice, X - 2, Z - 6, 0.2, groundAt(X - 2, Z - 6) + 4); addCirc(X - 2, Z - 6, 3.2);
+        outdoorNPC({ name: 'Wayfinder Ylva', x: X + 6, z: Z + 10, look: 'v4', lines: ["Out here the snow eats every sound. You can hear your own heart deciding things.",
+            "There's a king frozen in that block of ice. Nobody remembers which one. That's the funny thing about kings.",
+            "The Rime Titan sleeps under the glacier. Wake it only if you're tired of being warm."] });
+    })();
+    // THE GLASS DUNES: Ozymandias' colossus in the far east
+    (() => {
+        const X = DUNES.x, Z = DUNES.z;
+        const leg = mergeGeos([[gBox(2.6, 9, 2.6, 0, 4.5, 0), 0xc9a46a], [gBox(3.2, 1.2, 4.4, 0, 0.6, 0.6), 0xb8935a], [gBox(2.8, 0.8, 2.8, 0, 9.2, 0), 0x9a7a4a]]);
+        put(mergeGeos([[gBox(11, 2.4, 6, 0, 1.2, 0), 0xb8935a]]), matProp, X - 4, Z - 16); addBox(X - 4, Z - 16, 11, 6);
+        [-7.5, -0.5].forEach(dx => put(leg, matProp, X + dx, Z - 16, 0, groundAt(X - 4, Z - 16) + 2.4));
+        put(mergeGeos([[gBox(5, 5.6, 4.6, 0, 1.6, 0), 0xc9a46a], [gBox(1.2, 1.6, 1.4, 0, 2.0, 2.6), 0xb8935a], [gBox(3.4, 0.5, 0.4, 0, 0.3, 2.4), 0x7a5a32], [gBox(5.6, 1.4, 5, 0, 4.6, -0.4), 0x9a7a4a]]), matProp, X + 12, Z - 4, -0.5, groundAt(X + 12, Z - 4) - 1.4);
+        addCirc(X + 12, Z - 4, 3.6);
+        const shards = [];
+        for (let i = 0; i < 24; i++) { const a = rand() * 6.28, d = 10 + rand() * 14, x = X + Math.cos(a) * d, z = Z + Math.sin(a) * d; shards.push({ x: x, y: groundAt(x, z), z: z, s: rr(0.5, 1.2), r: rr(0, 6), tx: rr(-0.4, 0.4) }); }
+        instanced(gCone(0.5, 2.4, 4, 0, 1.0, 0), new THREE.MeshStandardMaterial({ color: 0xfff0c8, roughness: 0.1, metalness: 0.5, transparent: true, opacity: 0.8, flatShading: true }), shards, false);
+        const palms = [];
+        [[-24, 4], [-22, 20], [22, 18]].forEach(([dx, dz]) => palmAt(palms, X + dx, Z + dz));
+        instanced(palmGeo(), matProp, palms, true);
+        outdoorNPC({ name: 'Archaeologist Petra', x: X - 8, z: Z + 6, look: 'v1', lines: ["Some king carved that face so the world would remember him forever. The world remembers the sand.",
+            "Under the surface the dunes are glass. Something huge swims through them like a fish through water. I measure its wake for fun."] });
+    })();
+    // THE ELDERWOOD: the oldest tree on Aethelgard, ringed by standing stones
+    (() => {
+        const X = ELDER.x, Z = ELDER.z;
+        put(mergeGeos([[gCyl(2.6, 4.2, 16, 9, 0, 8, 0), 0x4a3220], [gIco(9, 1, 0, 19, 0), 0x2f7a35], [gIco(6.5, 1, -5, 15, 3), 0x3a8a3a], [gIco(6, 1, 5, 16, -3), 0x2a6a2e], [gIco(5, 1, 2, 23, 2), 0x4aa03c],
+            [gBox(1.2, 1.0, 7, -3.5, 0.4, 2.5), 0x4a3220], [gBox(7, 1.0, 1.2, 3, 0.4, -2.5), 0x4a3220]]), matProp, X, Z - 14);
+        addCirc(X, Z - 14, 4.6);
+        for (let i = 0; i < 8; i++) { const a = i / 8 * Math.PI * 2, x = X + Math.cos(a) * 13, z = Z - 2 + Math.sin(a) * 11; if (Math.hypot(x - X, z - (Z - 14)) < 6 || (Math.abs(x - X) < 4 && z > Z)) continue; put(gBox(1.4, 4.2, 0.9, 0, 2.1, 0), rockMat(0x6a6a72), x, z, a); addCirc(x, z, 0.9); makeGlow(x, groundAt(x, z) + 3.4, z, 0x7dffb4, 2, 0.2); }
+        for (let i = 0; i < 10; i++) { const x = X + rr(-14, 14), z = Z + rr(-18, 10), gl = makeGlow(x, groundAt(x, z) + 2, z, 0xb8ffd8, 1.2, 0.3), ph = rand() * 6; animated.push(t => { gl.position.y = groundAt(x, z) + 2 + Math.sin(t + ph) * 0.8; }); }
+        outdoorNPC({ name: 'Warden Fennick', x: X + 7, z: Z + 10, look: 'v2', lines: ["These trees were old when the first boat reached Aethelgard.",
+            "The Elder Treant guards the heart of the wood. It doesn't hate you. It just has a very long memory, and a very short patience."] });
+    })();
+})();
 
 // ==========================================
 // 6. CHARACTERS: hero, enemy, NPCs, villagers, treasure chests
@@ -3947,7 +4119,7 @@ function updateBattleStatus(extra) {
     if (u.poison) s.push(`POISON ${u.poison}`);
     if (u.mech) s.push(`${GEARS[u.key].name}: dmg x1.8, +2 AP`);
     if (t && t.charged) s.push(`${t.name} CHARGING!`);
-    if (t && !extra) s.push(TRAIT_TEXT[t.trait] || '');
+    if (t && !extra) s.push((TRAIT_TEXT[t.trait] || '') + (t.trait2 ? ' + ' + (TRAIT_TEXT[t.trait2] || '') : ''));
     if (extra) s.push(extra);
     $('battle-status').innerText = s.filter(Boolean).join(' · ');
     $('active-name').innerText = B.enemyPhase ? "ENEMIES' TURN" : `${u.name}'S TURN${u.mech ? ' (in ' + GEARS[u.key].name + ')' : ''}`;
@@ -3999,9 +4171,11 @@ function renderComboFeed() {
 }
 
 // ---------- damage helpers ----------
+const HT = (f, t) => !!f && (f.trait === t || f.trait2 === t);      // a foe can carry two traits
 function traitHit(f, t, raw, pierce) {
-    if (!pierce && f.trait === 'evade' && t !== 4 && Math.random() < 0.25) return -1;
-    if (!pierce && f.trait === 'armor') raw *= t === 1 ? 0.5 : t === 3 ? 1.25 : 1;
+    if (!pierce && HT(f, 'evade') && t !== 4 && Math.random() < 0.25) return -1;
+    if (!pierce && HT(f, 'armor')) raw *= t === 1 ? 0.5 : t === 3 ? 1.25 : 1;
+    if (!pierce && HT(f, 'warded') && t !== 4) raw *= 0.6;
     if (f.mark) raw *= 1.35;
     return Math.round(raw);
 }
@@ -4055,6 +4229,13 @@ function applyArtFx(art, total, u, f) {
         case 'healSome': LIVE_PARTY().forEach(w => healUnit(w, w.st.maxHp * 0.12)); break;
         case 'revive': B.party.forEach(w => { if (w.ko) { setKO(w, false); w.st.hp = Math.round(w.st.maxHp * 0.4); floatText('REVIVED', '#ffffff', UPOS(w), 1.2); } else healUnit(w, w.st.maxHp * 0.15); w.poison = 0; }); break;
         case 'chillAll': ALL_FOES().forEach(x => { if (Math.random() < 0.35) { x.stunned = true; floatText('FROZEN', '#9fe8ff', FPOS(x), 1.2); } }); break;
+        case 'shred': if (f && f.hp > 0) { f.def = Math.round((f.def || 0) * 0.5); floatText('ARMOR SHRED', '#ffb84d', FPOS(f), 1.2); } break;
+        case 'quakeAll': ALL_FOES().forEach(x => { if (Math.random() < 0.5) { x.stunned = true; floatText('STAGGERED', '#ffd24a', FPOS(x), 1.1); } }); break;
+        case 'bleedAll': ALL_FOES().forEach(x => { x.bleed = 3; floatText('BLEEDING', '#ff3b30', FPOS(x), 1.0); }); break;
+        case 'markAll': ALL_FOES().forEach(x => { x.mark = 3; floatText('MARKED', '#ff5a5a', FPOS(x), 1.0); }); break;
+        case 'aegisAll': LIVE_PARTY().forEach(w => { w.guard = true; healUnit(w, w.st.maxHp * 0.1); ringFX(UPOS(w), 0x9fd2ff, 1, 2.6, 0.5, false); }); break;
+        case 'linkAll': LIVE_PARTY().forEach(w => { w.pendingLink = LINK_SLOTS; }); floatText('PARTY LINK +3', '#f1c40f', UPOS(u), 1.2); break;
+        case 'execute': if (f && f.hp > 0 && f.hp < f.maxHp * 0.35) { hurtFoe(f, f.maxHp * 0.15 * (400 + (f.def || 0)) / 400, '#ffffff', 1.5); floatText('EXECUTE', '#ffffff', FPOS(f), 1.4); } break;
     }
     refreshStats(); renderParty();
 }
@@ -4156,7 +4337,7 @@ function executeTurn() {
             const g = GEAR_STATE[u.key]; g.fuel = Math.max(0, g.fuel - hits.reduce((s, t) => s + AP_COST[t], 0) * 3);
             if (g.fuel <= 0) { showDialogue(`${GEARS[u.key].name} is out of fuel! ${u.name} ejects.`); ejectGear(u); }
         }
-        if (f.trait === 'thorns' && f.hp > 0) { const th = Math.round((baseSum + bonus) * 0.08); u.st.hp = Math.max(1, u.st.hp - th); floatText('THORNS -' + th, '#ff8a6a', UPOS(u), 1.0); }
+        if (HT(f, 'thorns') && f.hp > 0) { const th = Math.round((baseSum + bonus) * 0.08); u.st.hp = Math.max(1, u.st.hp - th); floatText('THORNS -' + th, '#ff8a6a', UPOS(u), 1.0); }
         u.buf = []; inputBuffer = u.buf;
         refreshStats(); renderParty(); renderFoes();
         if (!ALL_FOES().length) { setTimeout(() => endCombat(true), 500); return; }
@@ -4194,6 +4375,7 @@ function strikeUnit(f, u, mult) {
     if (!u || u.ko) return;
     let raw = (f.dmg[0] + Math.random() * (f.dmg[1] - f.dmg[0])) * mult;
     if (f.charged) { raw *= 2.4; f.charged = false; }
+    if (HT(f, 'enrage') && f.hp < f.maxHp * 0.5) raw *= 1.5;
     const def = u.st.def + aDef(u.key) * 1 + (u.taunt ? u.st.def * 0.6 : 0);
     let net = Math.max(10, Math.round(raw - def / 2));
     if (u.guard) { net = Math.round(net / 2); u.guard = false; floatText('GUARDED', '#9fd2ff', UPOS(u), 1.1); }
@@ -4221,8 +4403,9 @@ function strikeUnit(f, u, mult) {
         } else {
             u.st.hp = Math.max(0, u.st.hp - net);
             floatText('-' + net, '#ff5a5a', UPOS(u), 1.4);
-            if (f.trait === 'poison' && Math.random() < 0.5) { u.poison = 3; floatText('POISONED', '#b6ff5a', UPOS(u), 1.0); }
-            if (f.trait === 'chill' && Math.random() < 0.5) { u.chill = true; floatText('CHILLED', '#9fe8ff', UPOS(u), 1.0); }
+            if (HT(f, 'poison') && Math.random() < 0.5) { u.poison = 3; floatText('POISONED', '#b6ff5a', UPOS(u), 1.0); }
+            if (HT(f, 'chill') && Math.random() < 0.5) { u.chill = true; floatText('CHILLED', '#9fe8ff', UPOS(u), 1.0); }
+            if (HT(f, 'siphon') && f.hp > 0) { const h = Math.round(net * 0.5); f.hp = Math.min(f.maxHp, f.hp + h); floatText('SIPHON +' + h, '#c45aff', FPOS(f), 1.0); renderFoes(); }
             if (u.st.hp <= 0) setKO(u, true);
         }
         refreshStats(); renderParty();
@@ -4231,7 +4414,8 @@ function strikeUnit(f, u, mult) {
 function foeAct(f, done) {
     if (!inCombat || f.hp <= 0) { done(); return; }
     f.turns++;
-    if (f.trait === 'regen') { const h = Math.round(f.maxHp * 0.06); f.hp = Math.min(f.maxHp, f.hp + h); floatText('+' + h, '#5aff9a', FPOS(f), 1.1); renderFoes(); }
+    if (HT(f, 'enrage') && !f.enraged && f.hp < f.maxHp * 0.5) { f.enraged = true; floatText('ENRAGED', '#ff3b30', FPOS(f), 1.4); triggerCameraShake(0.4); }
+    if (HT(f, 'regen')) { const h = Math.round(f.maxHp * 0.06); f.hp = Math.min(f.maxHp, f.hp + h); floatText('+' + h, '#5aff9a', FPOS(f), 1.1); renderFoes(); }
     if (f.stunned) {
         f.stunned = false;
         const lost = f.charged; f.charged = false;
@@ -4239,14 +4423,14 @@ function foeAct(f, done) {
         showDialogue(lost ? `${f.name} is stunned mid-charge! The attack fizzles.` : `${f.name} reels and loses its turn!`);
         setTimeout(done, 700); return;
     }
-    if (f.trait === 'charge' && !f.charged && f.turns % 3 === 0) {
+    if (HT(f, 'charge') && !f.charged && f.turns % 3 === 0) {
         f.charged = true;
         floatText('CHARGING', '#ff5a5a', FPOS(f), 1.3);
         showDialogue(`${f.name} is gathering a massive blow for next turn! Guard, taunt with Nils, or stun it.`);
         triggerCameraShake(0.3);
         setTimeout(done, 850); return;
     }
-    if (f.trait === 'double') { const bid = BID; strikeUnit(f, pickVictim(), 0.6); setTimeout(() => { if (live(bid) && LIVE_PARTY().length) strikeUnit(f, pickVictim(), 0.6); setTimeout(done, 650); }, 600); }
+    if (HT(f, 'double')) { const bid = BID; strikeUnit(f, pickVictim(), 0.6); setTimeout(() => { if (live(bid) && LIVE_PARTY().length) strikeUnit(f, pickVictim(), 0.6); setTimeout(done, 650); }, 600); }
     else { strikeUnit(f, pickVictim(), 1); setTimeout(done, 750); }
 }
 function enemyPhase() {
@@ -4385,11 +4569,14 @@ const battleMarks = (() => {
 function foeFromKey(key, slot) {
     const lv = playerStats.lv;
     let E;
-    if (ENEMY_TYPES[key]) E = Object.assign({ tex: key === 'warlord' ? MECHA : ENEMY_TYPES[key].D ? humanFoeTex(key, ENEMY_TYPES[key].D) : beauTex(), def: key === 'warlord' ? 40 : 30 }, ENEMY_TYPES[key]);
+    if (ENEMY_TYPES[key]) {
+        E = Object.assign({ tex: key === 'warlord' ? MECHA : ENEMY_TYPES[key].mon ? monsterTex(ENEMY_TYPES[key].mon) : ENEMY_TYPES[key].D ? humanFoeTex(key, ENEMY_TYPES[key].D) : beauTex(), def: key === 'warlord' ? 40 : 30 }, ENEMY_TYPES[key]);
+        if (E.field) { const k = 1 + 0.06 * (lv - 1), kd = 1 + 0.05 * (lv - 1); E.hp = Math.round(E.hp * k); E.dmg = [E.dmg[0] * kd, E.dmg[1] * kd]; }
+    }
     else {
         const Bk = BESTIARY[key], sh = (1 + 0.12 * (lv - 1)) * (1 + 0.15 * party.length), sd = 1 + 0.08 * (lv - 1);
         E = { name: Bk.name, hp: Math.round(Bk.hp * sh), dmg: [Bk.dmg[0] * sd, Bk.dmg[1] * sd], size: Bk.size || (Bk.body === 'human' ? 0.72 : 1), tint: 0xffffff, boss: false,
-            trait: Bk.trait, def: Bk.def !== undefined ? Bk.def : Bk.trait === 'armor' ? 30 : Bk.body === 'golem' ? 24 : 12, tex: Bk.body === 'human' ? humanFoeTex(key, Bk.D) : monsterTex(key), fly: !!Bk.fly, xp: Math.round(Bk.xp * (1 + 0.1 * (lv - 1))) };
+            trait: Bk.trait, trait2: Bk.trait2, def: Bk.def !== undefined ? Bk.def : Bk.trait === 'armor' ? 30 : Bk.body === 'golem' ? 24 : 12, tex: Bk.body === 'human' ? humanFoeTex(key, Bk.D) : monsterTex(key), fly: !!Bk.fly, xp: Math.round(Bk.xp * (1 + 0.1 * (lv - 1))) };
     }
     E.dmg = [E.dmg[0], E.dmg[1]];
     return Object.assign(E, { key: key, maxHp: E.hp, slot: slot, actor: enemyPool[slot], stunned: false, charged: false, mark: 0, flashUntil: 0, poseUntil: 0, turns: 0, dead: false,
@@ -4440,15 +4627,18 @@ function startCombat(keyOrList, biome, opts) {
     $('location-name').innerText = bossKey === 'warlord' ? 'FINAL BATTLE: VANGUARD' : bossKey ? `BOSS: ${foes[0].name}` : `BATTLE: ${foes.map(f => f.name).join(', ')}`;
     showDialogue(bossKey === 'warlord' ? "FINAL BATTLE: VANGUARD and his escorts! Remember the Hermit: he who fights with monsters should be careful lest he thereby become a monster."
         : bossKey === 'beauregard' ? "BOSS: BEAUREGARD and two raiders! He strikes twice every turn. Guard, heal, and make your deathblows count."
+        : bossKey && ENEMY_TYPES[bossKey].field ? `FIELD BOSS: ${foes[0].name}! ${TRAIT_TEXT[foes[0].trait] || ''}${foes[0].trait2 ? ' + ' + TRAIT_TEXT[foes[0].trait2] : ''}.`
         : bossKey && ENEMY_TYPES[bossKey].defender ? `DEFENDER: ${foes[0].name} with the townsfolk! DEF ${foes[0].def}: every hit lands at 40%. ${TRAIT_TEXT[foes[0].trait]}.`
         : `${foes.length > 1 ? foes.length + ' foes' : 'A wild ' + foes[0].name} ${foes.length > 1 ? 'appear' : 'appears'}! Each ally takes a turn. Tap an enemy (or 1-3) to target it.`);
     startRound();
 }
-function randomEncounter(reg) {
-    const list = story.dark ? VILLAGER_FOES : BIOME_ENEMIES[reg].filter(k => !(k === 'mecha_scout' && story.warlordDown));
-    const r = Math.random(), n = r < 0.42 ? 1 : r < 0.82 ? 2 : 3;
+function randomEncounter(reg, x, z) {
+    const far = x !== undefined && isFrontier(x, z), pick = L => L[Math.floor(Math.random() * L.length)];
+    const list = story.dark ? (far ? VILLAGER_FOES.concat(FRONTIER_ENEMIES[reg]) : VILLAGER_FOES) : far ? FRONTIER_ENEMIES[reg] : BIOME_ENEMIES[reg].filter(k => !(k === 'mecha_scout' && story.warlordDown));
+    const r = Math.random(), n = far ? (r < 0.25 ? 1 : r < 0.7 ? 2 : 3) : (r < 0.42 ? 1 : r < 0.82 ? 2 : 3);
     const keys = [];
-    for (let i = 0; i < n; i++) keys.push(list[Math.floor(Math.random() * list.length)]);
+    for (let i = 0; i < n; i++) keys.push(pick(list));
+    if (!far && !story.dark && playerStats.lv >= 5 && Math.random() < 0.15) keys[keys.length - 1] = pick(FRONTIER_ENEMIES[reg]);    // an elite strays in from the Frontier
     startCombat(keys, reg);
 }
 function endCombat(result) {
@@ -4697,7 +4887,7 @@ function warlordAftermath() {
     playDialogue([
         { s: 'VANGUARD', t: "Enough... enough. Yes. I gave the order. Beauregard only held the blade." },
         { s: 'VANGUARD', t: "Your father's books made my soldiers ask WHY. A soldier who asks why cannot be commanded." },
-        { s: 'VANGUARD', t: "Ashford. Seventeen years ago. We burned it for hiding a printing press. After we left, a courier walked into the flames and came out carrying a baby." },
+        { s: 'VANGUARD', t: "Ashford. Seventeen years ago. The decree called it a pre-emptive strike against violent extremism. The truth? We burned it for hiding a printing press. After we left, a courier walked into the flames and came out carrying a baby." },
         { s: 'VANGUARD', t: "He named you. Raised you. Spent the rest of his life carrying books to undo what we did. I should have known he was raising my reckoning." },
         { s: 'KAELEN', t: "...He was my father. Blood or not." }
     ].concat(party.some(m => m.key === 'nils') ? [
@@ -5551,11 +5741,11 @@ const miniBase = mkCanvas(140, 140);
 (function paintMiniBase() {       // painted once: biomes, roads and landmarks
     const g = miniBase.getContext('2d'), c = 70, sc = 140 / terrainSize;
     g.fillStyle = '#1d5a8f'; g.fillRect(0, 0, 140, 140);           // sea
-    const L = c - WORLD_LIMIT * sc - 3, S = (WORLD_LIMIT * sc + 3);
-    g.fillStyle = '#3a3a44'; g.fillRect(L, L, S, S);              // Obsidian Crags (north-west)
-    g.fillStyle = '#d8ecfa'; g.fillRect(c, L, S, S);              // Frozen Spires (north-east)
-    g.fillStyle = '#2d5a27'; g.fillRect(L, c, S, S);              // Sylvan Forest (south-west)
-    g.fillStyle = '#c2b280'; g.fillRect(c, c, S, S);              // Aether Desert (south-east)
+    const xL = c - WORLD_W * sc - 3, xR = c + WORLD_E * sc + 3, zT = c - WORLD_N * sc - 3, zB = c + WORLD_S * sc + 3;
+    g.fillStyle = '#3a3a44'; g.fillRect(xL, zT, c - xL, c - zT);  // Obsidian Crags (north-west)
+    g.fillStyle = '#d8ecfa'; g.fillRect(c, zT, xR - c, c - zT);   // Frozen Spires (north-east)
+    g.fillStyle = '#2d5a27'; g.fillRect(xL, c, c - xL, zB - c);   // Sylvan Forest (south-west)
+    g.fillStyle = '#c2b280'; g.fillRect(c, c, xR - c, zB - c);    // Aether Desert (south-east)
     g.strokeStyle = 'rgba(235,215,170,0.85)'; g.lineWidth = 1.2;
     ROADS.forEach(road => {
         g.beginPath();
@@ -5565,7 +5755,8 @@ const miniBase = mkCanvas(140, 140);
     [[0, 0, '#ffffff', 3.5], [BAR.x, BAR.z, '#ff4fd8', 2.5], [BASE.x, BASE.z, '#ff3b30', 3], [SHRINE.x, SHRINE.z, '#55ffd0', 2], [ICE.x, ICE.z, '#7ae8ff', 2], [0, 232, '#4fc3f7', 2],
         [STOA.x, STOA.z, '#ffb54d', 3], [HERM.x, HERM.z, '#9cff7a', 3], [FROST.x, FROST.z, '#3a7bd5', 3], [CAVE.x, CAVE.z, '#ff8a30', 3],
         [BRINE.x, BRINE.z, '#4fc3f7', 3], [EMBER.x, EMBER.z, '#ff7a2a', 3], [SKY.x, SKY.z, '#ffffff', 3],
-        [PORTALS.hollow.x, PORTALS.hollow.z, '#9fd2ff', 2], [PORTALS.ashen.x, PORTALS.ashen.z, '#ff8a30', 2], [PORTALS.glacier.x, PORTALS.glacier.z, '#7ae8ff', 2]]
+        [PORTALS.hollow.x, PORTALS.hollow.z, '#9fd2ff', 2], [PORTALS.ashen.x, PORTALS.ashen.z, '#ff8a30', 2], [PORTALS.glacier.x, PORTALS.glacier.z, '#7ae8ff', 2],
+        [ASHFORD.x, ASHFORD.z, '#ff6a20', 3], [MAW.x, MAW.z, '#ff3b30', 3], [WHITE.x, WHITE.z, '#9fe8ff', 3], [DUNES.x, DUNES.z, '#ffd27a', 3], [ELDER.x, ELDER.z, '#7dffb4', 3]]
         .forEach(([x, z, col, r]) => { g.fillStyle = col; g.beginPath(); g.arc(c + x * sc, c + z * sc, r, 0, Math.PI * 2); g.fill(); });
     g.fillStyle = '#66e0ff';
     TABLETS.forEach(t => g.fillRect(c + t.x * sc - 1, c + t.z * sc - 1, 2, 2));
@@ -5678,8 +5869,8 @@ function moveHero(dt, ix, iz) {
         if (checkZoneContact()) return;
     } else {
         resolveCollisions(_pos, RIDE.on ? 1.6 : HERO_R);
-        let nx = clamp(_pos.x, -WORLD_LIMIT, WORLD_LIMIT);
-        const nz = clamp(_pos.z, -WORLD_LIMIT, Math.abs(nx) <= PIER.hw - 0.3 ? PIER.end : WORLD_LIMIT);
+        let nx = clamp(_pos.x, -WORLD_W, WORLD_E);
+        const nz = clamp(_pos.z, -WORLD_N, Math.abs(nx) <= PIER.hw - 0.3 ? PIER.end : WORLD_S);
         if (p.z > WORLD_LIMIT) nx = clamp(nx, -(PIER.hw - 0.3), PIER.hw - 0.3);     // out on the pier only the planks are walkable
         placeActor(hero, nx, nz);
         // Random encounters anywhere in the wilds (towns, landmarks and the village are safe; roads halve the rate)
@@ -5689,7 +5880,7 @@ function moveHero(dt, ix, iz) {
         const safe = reg === 'village' || nz > WORLD_LIMIT - 2 || Math.hypot(nx - BASE.x, nz - BASE.z) < 32 || PLACES.some(pl => Math.hypot(nx - pl.x, nz - pl.z) < pl.r);
         if (!safe && !RACE) {
             stepCounter += k * (roadDist(nx, nz) < 4 ? 0.45 : 1) * (RIDE.on ? 0.25 : 1);
-            if (stepCounter > encounterAt) { stepCounter = 0; randomEncounter(reg); return; }
+            if (stepCounter > encounterAt) { stepCounter = 0; randomEncounter(reg, nx, nz); return; }
         }
     }
     trail.unshift({ x: hero.mesh.position.x, z: hero.mesh.position.z });
@@ -5873,7 +6064,7 @@ function csBegin(o) {
 }
 function csEnd(endPos) {
     CS.temps.forEach(a => { a.mesh.visible = false; a.blob.visible = false; });
-    CS.cast.forEach(a => { a.mesh.rotation.z = 0; a.mesh.scale.set(1, 1, 1); a.kneel = false; a.fallen = false; a.poseUntil = 0; a.lockDir = false; });
+    CS.cast.forEach(a => { a.mesh.rotation.z = 0; if (!a.gear3d) a.mesh.rotation.y = 0; a.mesh.scale.set(1, 1, 1); a.kneel = false; a.fallen = false; a.poseUntil = 0; a.lockDir = false; });
     CS.torches.forEach(t => { const i = glows.findIndex(g => g.s === t.g); if (i >= 0) glows.splice(i, 1); scene.remove(t.g); });
     ambientLight.intensity = CS.saved.amb; sun.intensity = CS.saved.sun;
     camera.fov = 45; camera.updateProjectionMatrix();
@@ -5919,7 +6110,17 @@ function updateCutscene(dt) {
     if (shakeT > 0) { shakeT -= dt; shx = (Math.random() - 0.5) * shakeK; shy = (Math.random() - 0.5) * shakeK; }
     camera.position.set(CS.camC.x + shx, CS.camC.y + shy, CS.camC.z);
     camera.lookAt(CS.lookC);
+    // sprites are flat cards: turn every cast member toward the camera so reverse angles (hangar reveals, close-ups from the far side)
+    // show the character instead of an invisible back face and the wall behind it; seen from behind, show the facing they'd really have
+    const cp = camera.position;
+    CS.cast.forEach(a => {
+        if (!a || a.gear3d || !a.mesh) return;
+        const p = a.mesh.position, bb = Math.atan2(cp.x - p.x, cp.z - p.z);
+        a.mesh.rotation.y = bb;
+        if (!a.fallen && Math.abs(bb) > Math.PI / 2 && !(now < (a.poseUntil || 0))) { const d0 = a.dir; a.dir = CS_FLIP[d0] || d0; setActorFrame(a); a.dir = d0; }
+    });
 }
+const CS_FLIP = { up: 'down', down: 'up', left: 'right', right: 'left' };
 
 // ---------- fight choreography ----------
 const hitPos = a => ({ x: a.mesh.position.x, y: a.mesh.position.y + 0.3, z: a.mesh.position.z + 0.2 });
@@ -6031,7 +6232,7 @@ async function runOpening() {
     csShotA(aldric, { dist: 4.4, h: 1.8, look: 1.9, fov: 38, yaw: 0.3, snap: true });
     await csSay('ALDRIC', "Beauregard. Books belong to whoever reads them. And these are already gone.");
     csShot(5, -4.5, { dist: 9, h: 4, snap: true });
-    await csSay('BEAUREGARD', "Then you'll tell us where. Take him.", 2200);
+    await csSay('BEAUREGARD', "Then you'll tell us where. Nobody's arresting you, courier. You're simply a person of interest. Take him.", 3000);
     await Promise.all([csWalk(r0, 6.2, -5.2, 5), csWalk(r1, 7.8, -4.0, 5)]);
     r0.dir = 'down'; r1.dir = 'left';
 
@@ -6238,7 +6439,7 @@ const RECRUIT_FIGHTS = {
         await Promise.all([csWalk(g0, X + 4.5, Z - 2.4, 7), csWalk(g1, X + 5.8, Z + 0.8, 7)]);
         g0.dir = 'left'; g1.dir = 'left'; A.dir = 'right';
         csShotA(g0, { dist: 4.4, h: 0.7, look: 2.4, fov: 40, yaw: 0.3, snap: true });
-        await csSay('RAIDER', "Hand over the ice-carver's axes. Vanguard's orders.");
+        await csSay('RAIDER', "Hand over the ice-carver's axes. It's not theft, it's asset reallocation. Vanguard's orders.");
         csShotA(A, { dist: 4, h: 1.6, look: 2, fov: 38, yaw: -0.3, snap: true });
         await csSay('NILS', "Vanguard. Tell my brother he can come and get them himself.", 2600);
         csShot(X + 2.4, Z - 0.8, { dist: 10, h: 4.5, snap: true });
@@ -6328,7 +6529,7 @@ async function hangarScene(key) {
     csUse(hero); placeActor(hero, X + (pilot === hero ? 0 : -1.6), Z + 36); hero.dir = 'up';
     if (pilot !== hero) { csUse(pilot); placeActor(pilot, X + 1.6, Z + 36); pilot.dir = 'up'; }
     // 1. the doors grind open on a dark bay
-    csShot(X, Z + 30, { dist: 16, h: 5, look: 6, yaw: 0, snap: true });
+    csShot(X, Z + 36, { dist: 11, h: 3.2, look: 3.6, yaw: 0.2, snap: true });
     await csTitle(key === 'silver' ? 'HALCYON ORB · HANGAR BAY' : key === 'kaelen' ? 'BENEATH THE NEON AEGIS' : 'THE HANGAR', 1700);
     for (const [sp, t] of L.pre) await csSay(sp, t);
     if (!CS.skip) { triggerCameraShake(0.5); tween(2.2, k => { HANGAR.doors.forEach(d => { d.m.position.x = X + d.s * (6 + 11.5 * k); }); }); }
@@ -6395,6 +6596,7 @@ async function beauregardScene() {
     csShotA(beau, { dist: 4.2, h: 0.5, look: 2.8, fov: 40, yaw: -0.3, snap: true });
     await csSay('BEAUREGARD', "Well, well. The courier's whelp grew teeth.");
     await csSay('BEAUREGARD', "Vanguard said you'd come knocking. He asked me to answer the door.");
+    await csSay('BEAUREGARD', "Let's keep this friendly. It would be ill-advised to go against us, whelp.");
     csShotA(hero, { dist: 4.2, h: 1.7, look: 1.9, fov: 38, yaw: 0.3, snap: true });
     await csSay('KAELEN', "Beauregard. You killed my father.", 2400);
     const L = allyActor('lira'), C = allyActor('cassius'), M = allyActor('maren'), N = allyActor('nils');
@@ -6499,6 +6701,7 @@ async function vanguardScene() {
     if (C) await csStrike(C, van, { big: true, color: 0xffe0a0, speed: 22, back: true });
     await csStrike(van, hero, { big: true, knock: 2.2, color: 0xff4a4a, shake: 1.3, speed: 14 });
     csShotA(van, { dist: 8, h: 0.6, look: 5, fov: 42, snap: true });
+    await csSay('VANGUARD', "Your father called it book burning. My decrees call it correcting the record. Words are walls, boy. I simply build better ones.");
     await csSay('VANGUARD', "Come, then. Show me what a courier's books are worth.", 3000);
     csEnd({ x: X, z: Z });
     BASE_GATE.mesh.visible = true;
@@ -7082,6 +7285,87 @@ function gearImpact(u, combo, finisher) {
     });
     if (finisher) { hitStop(240, 0.1); screenTint('#ffffff', 0.55, 160); camPunch(6, 0.4); }
 }
+// ---------- MORE GEAR ARTS: three new moves per machine (Psyche-led inputs; the last needs Link AP) ----------
+const hx = c => '#' + c.toString(16).padStart(6, '0');
+const GX = {       // reusable choreography, tinted per gear; every one calls imp() exactly once
+    meteor(imp, c1, c2, all) {
+        hpose(1700); const T = all ? ALL_FOES().map(FPOS) : [EPOS()], S = gUP();
+        beamFX({ x: S.x, y: GROUND, z: S.z }, c1, 14, 1.4, 0.6); fxFlash(S, c2, 6, 0.4); screenTint('#000000', 0.35, 400);
+        T.forEach((E, i) => at(450 + i * 160, () => projectile(SKY_AT(E, 16), E, c1, 0.35, 0, 2.2, () => {
+            fxFlash(E, 0xffffff, 12, 0.5); fxFlash(E, c1, 16, 0.8); ringFX({ x: E.x, y: GROUND + 0.1, z: E.z }, c2, 1, 10, 0.7, true);
+            beamFX({ x: E.x, y: GROUND, z: E.z }, c1, 18, 2.2, 0.7); particles(E, c2, 40, { speed: 14, grav: 6 }); camPunch(4, 0.3); triggerCameraShake(1.8); })));
+        at(900 + T.length * 160, imp);
+    },
+    barrage(imp, c1, c2, all) {
+        hpose(1500); const T = all ? ALL_FOES().map(FPOS) : [EPOS()];
+        for (let i = 0; i < 14; i++) at(i * 65, () => { const E = T[i % T.length]; projectile(gUP(), { x: E.x + (Math.random() - 0.5) * 1.4, y: E.y + (Math.random() - 0.5), z: E.z }, i % 2 ? c1 : c2, 0.3, 2 + Math.random() * 2, 0.6, () => { fxFlash(E, c1, 3, 0.25); particles(E, c2, 5, { speed: 6 }); triggerCameraShake(0.35); }); });
+        at(1100, () => { T.forEach(E => { fxFlash(E, 0xffffff, 9, 0.4); ringFX(E, c1, 0.6, 7, 0.5, false); }); camPunch(3, 0.25); eflash(200); imp(); });
+    },
+    blink(imp, c1, c2, all) {
+        hpose(1700); const a = ACT.a, T = all ? ALL_FOES().map(FPOS) : [EPOS()];
+        for (let i = 0; i < 6; i++) at(120 + i * 140, () => { const E = T[i % T.length], ang = i * 2.1; afterimage(a, c1, 0.4); placeActor(a, E.x + Math.cos(ang) * 2, E.z + Math.sin(ang) * 1.2); slashFX(E, i === 5, i % 2 ? c1 : c2); particles(E, c2, 10, { speed: 7 }); triggerCameraShake(0.6); });
+        at(1000, () => { T.forEach(E => { fxFlash(E, c1, 13, 0.6); ringFX(E, c2, 0.6, 9, 0.6, false); }); screenTint(hx(c1), 0.35, 200); camPunch(5, 0.3); eflash(260); imp(); });
+        at(1350, () => heroHome(0.3));
+    },
+    nova(imp, c1, c2, all) {
+        hpose(1600); const P = gUP(), T = all ? ALL_FOES().map(FPOS) : [EPOS()];
+        gatherEnergy(P, c1); ringFX({ x: P.x, y: GROUND + 0.1, z: P.z }, c2, 6, 0.5, 0.5, true);
+        at(500, () => { shockSphere(P, c1, 3, 0.4); fxFlash(P, 0xffffff, 6, 0.3); });
+        at(800, () => { screenTint(hx(c1), 0.4, 300); shockSphere({ x: (P.x + T[0].x) / 2, y: P.y, z: (P.z + T[0].z) / 2 }, c1, 14, 0.8);
+            T.forEach(E => { fxFlash(E, c2, 12, 0.6); particles(E, c1, 30, { speed: 12 }); debris({ x: E.x, y: GROUND + 0.6, z: E.z }, 0x5a5a66, 8); }); triggerCameraShake(2); camPunch(5, 0.35); imp(); });
+    },
+    drill(imp, c1, c2) {
+        hpose(1700); const E = EPOS(), a = ACT.a;
+        moveActorTo(a, E.x - 2.4, E.z + 0.5, 0.25, 0.3, null, c1);
+        for (let i = 0; i < 9; i++) at(280 + i * 65, () => { const o = { x: E.x + (Math.random() - 0.5) * 1.4, y: E.y + (Math.random() - 0.5) * 1.4, z: E.z + 0.3 }; fxFlash(o, i % 2 ? c1 : 0xffffff, 3.2, 0.2); particles(o, c2, 6, { speed: 8 }); triggerCameraShake(0.5); eflash(60); });
+        at(900, () => { fxFlash(E, 0xffffff, 12, 0.45); fxFlash(E, c1, 16, 0.8); ringFX(E, c2, 1, 12, 0.7, false); speedLines(E, c1, 18); particles(E, c1, 50, { speed: 16, grav: 5 }); camPunch(6, 0.35); triggerCameraShake(2.2); hitStop(160, 0.15); imp(); });
+        at(1300, () => heroHome(0.3));
+    },
+    pillar(imp, c1, c2, all) {
+        hpose(1700); const T = all ? ALL_FOES().map(FPOS) : [EPOS()], P = gUP();
+        beamFX({ x: P.x, y: GROUND, z: P.z }, c2, 8, 1.2, 0.5); ringFX({ x: P.x, y: GROUND + 0.1, z: P.z }, c1, 0.5, 5, 0.5, true);
+        T.forEach((E, i) => { at(300 + i * 120, () => ringFX({ x: E.x, y: GROUND + 0.1, z: E.z }, c1, 3, 0.5, 0.45, true));
+            at(700 + i * 120, () => { beamFX({ x: E.x, y: GROUND, z: E.z }, c1, 22, 2.6, 0.9); beamFX({ x: E.x, y: GROUND, z: E.z }, 0xffffff, 22, 1.0, 0.6); particles(E, c2, 36, { speed: 10, up: 1.4, grav: 2 }); debris({ x: E.x, y: GROUND + 0.6, z: E.z }, 0x5a5a66, 6); triggerCameraShake(1.4); }); });
+        at(900 + T.length * 120, () => { screenTint(hx(c1), 0.3, 220); camPunch(4, 0.3); imp(); });
+    },
+    orbitals(imp, c1, c2, all) {
+        hpose(1800); const T = all ? ALL_FOES().map(FPOS) : [EPOS()], P = gUP();
+        for (let i = 0; i < 10; i++) at(i * 105, () => { const E = T[i % T.length], from = { x: P.x - 3 + Math.random() * 2, y: P.y + 10 + Math.random() * 4, z: P.z - 2 }; projectile(from, E, i % 3 ? c1 : c2, 0.45, 3, 1.0, () => { fxFlash(E, c1, 5, 0.3); ringFX(E, c2, 0.4, 4, 0.35, false); triggerCameraShake(0.5); }); });
+        at(1250, () => { T.forEach(E => { fxFlash(E, 0xffffff, 10, 0.5); particles(E, c1, 26, { speed: 11 }); }); camPunch(4, 0.3); imp(); });
+    }
+};
+const MORE_GEAR_ARTS = {      // [name, seq, mult, tgt, fx, quote, choreography, colour, accent]
+    kaelen: [['LIGHTER FLARE', [4, 2, 3], 3.2, 'one', 'shred', "Dad's lighter. Still warm. Still burning.", 'drill', 0xf6c945, 0x00e5ff],
+        ['AEGIS NOVA', [3, 4, 3], 2.8, 'all', 'aegisAll', 'Everyone behind me. Now.', 'nova', 0x00e5ff, 0x9ff6ff],
+        ['FOUNTAIN WITHIN', [4, 3, 3, 4], 5.6, 'one', 'execute', "Aurelius: 'Look within. Within is the fountain of good.'", 'meteor', 0xf6c945, 0xffffff]],
+    lira: [['MIGRATION', [4, 2, 3], 2.6, 'all', 'markAll', 'The whole flock knows where you are now.', 'orbitals', 0xc9ff7a, 0x7cc08a],
+        ['GALE BREAKER', [3, 4, 3], 3.4, 'one', 'shred', 'Corin taught me to shoot into the wind.', 'blink', 0x7dffb4, 0xeaffd0],
+        ['APEX FALCON', [4, 3, 3, 4], 5.4, 'one', 'execute', 'Higher than any bird has flown. Then down.', 'meteor', 0xeaffd0, 0xc9ff7a]],
+    cassius: [['SHIELD WALL MARCH', [4, 2, 3], 2.7, 'all', 'aegisAll', 'Lock shields. Step. Step. Step.', 'nova', 0xffb84d, 0xe0a060],
+        ['DORIC CRUSH', [3, 4, 3], 3.5, 'one', 'shred', 'Columns hold up temples. Mine hold up a fist.', 'drill', 0xe0a060, 0xffd27a],
+        ['HOPLITE ECLIPSE', [4, 3, 3, 4], 5.0, 'all', 'quakeAll', "Herodotus: 'Then we shall fight in the shade.'", 'orbitals', 0xff8a3a, 0xffd27a]],
+    maren: [['SANCTUARY', [4, 2, 3], 2.0, 'all', 'aegisAll', 'Nobody falls while I hold the lamp.', 'nova', 0x7dffb4, 0xfff6c8],
+        ['HEARTH SONG', [3, 4, 3], 2.4, 'all', 'healAll', 'Sit close. The fire is for everyone.', 'pillar', 0xfff6c8, 0x7dffb4],
+        ["MOTHER'S INFIRMARY", [4, 3, 3, 4], 4.6, 'all', 'revive', 'Every bed is full of light now, Mother.', 'meteor', 0xfff6c8, 0xb8ffd8]],
+    nils: [['GLACIER CALVING', [4, 2, 3], 3.0, 'all', 'chillAll', 'Half a mountain of ice, falling on cue.', 'pillar', 0x9fe8ff, 0xffffff],
+        ['FROSTFALL CHISEL', [3, 4, 3], 3.6, 'one', 'shred', 'Ice carving is just patience with a hammer.', 'drill', 0xcff2ff, 0x9fe8ff],
+        ['TWENTY WINTERS', [4, 3, 3, 4], 5.4, 'one', 'stun', 'One for every winter you were gone, brother.', 'meteor', 0xeaf4ff, 0x9fe8ff]],
+    silver: [['GRAVITY WELL', [4, 2, 3], 2.8, 'all', 'quakeAll', 'Down is wherever I say it is.', 'nova', 0xc99bff, 0x9fd2ff],
+        ['PHOTON WALTZ', [3, 4, 3], 3.4, 'one', 'linkAll', 'Keep up. Light already did.', 'blink', 0xe0c8ff, 0xc99bff],
+        ['HALCYON DROP', [4, 3, 3, 4], 5.6, 'all', 'crit', 'Station, drop the whole sky on them.', 'orbitals', 0x9fd2ff, 0xffffff]],
+    vanguard: [['PRE-EMPTIVE STRIKE', [4, 2, 3], 3.4, 'one', 'stun', 'It is not an attack if we do it first.', 'drill', 0xff4a2e, 0xff8a30],
+        ['COLLATERAL DAMAGE', [3, 4, 3], 2.9, 'all', 'bleedAll', 'Regrettable. Unavoidable. Already forgotten.', 'barrage', 0xff8a30, 0xff2a1a],
+        ['PEACEKEEPING OPERATION', [4, 3, 3, 4], 5.6, 'all', 'quakeAll', 'Peace, delivered at reactor temperature.', 'meteor', 0xff2a1a, 0xffd27a]],
+    beauregard: [['PERSON OF INTEREST', [4, 2, 3], 3.0, 'one', 'shred', "You're not a suspect. You're a person of interest. It's mostly paperwork.", 'blink', 0xff3b30, 0xffb0a8],
+        ['DOWNSIZING', [3, 4, 3], 2.6, 'all', 'bleedAll', 'Reducing costs. Starting with you.', 'blink', 0xffb0a8, 0xff3b30],
+        ['PASSED ON', [4, 3, 3, 4], 5.6, 'one', 'execute', "Nobody dies on my watch. They pass on.", 'drill', 0xc2301a, 0xffffff]]
+};
+Object.keys(MORE_GEAR_ARTS).forEach(k => MORE_GEAR_ARTS[k].forEach(([name, seq, mult, tgt, fx, q, tpl, c1, c2]) => {
+    GEAR_ARTS_BY[k].push({ name: name, seq: seq, mult: mult, tgt: tgt, fx: fx, learned: true, q: q, fin: seq.length >= 4 });
+    ART_COLORS[name] = hx(c1);
+    ART_ANIMS[name] = imp => GX[tpl](imp, c1, c2, tgt === 'all');
+}));
+
 // wrap every gear art: cut-in first, then the art's own choreography, then the impact layer
 (() => {
     Object.keys(GEAR_ARTS_BY).forEach(k => GEAR_ARTS_BY[k].forEach((art, idx) => {
@@ -7089,7 +7373,7 @@ function gearImpact(u, combo, finisher) {
         const wrapped = function (imp) {
             const u = ACT.u, a = ACT;
             gearCutIn(u);
-            setTimeout(() => { if (!inCombat || ACT !== a) { imp(); return; } orig(() => { gearImpact(u, art, idx === 2); imp(); }); }, 650);
+            setTimeout(() => { if (!inCombat || ACT !== a) { imp(); return; } orig(() => { gearImpact(u, art, idx === 2 || !!art.fin); imp(); }); }, 650);
         };
         wrapped.__gear = true; ART_ANIMS[art.name] = wrapped;
     }));
@@ -7309,10 +7593,10 @@ if (typeof WHO !== 'undefined') Object.assign(WHO, { cannon: 'Vanguard', saber: 
 GEARS.vanguard = { name: 'OBSIDIAN', hp: 2400, pal: { S: '#2f2f38', SL: '#4d4d5a', SD: '#1c1c22', K: '#0e0e12', RD: '#ff4a2e', Y: '#8a8a96' } };
 GEARS.beauregard = { name: 'SCARLET', hp: 1600, pal: { S: '#43434f', SL: '#6a6a78', SD: '#2f2f38', K: '#141418', RD: '#ff3b30', Y: '#c2301a' } };
 ALLY_ARTS.vanguard = [
-    { name: 'OBSIDIAN CANNON', seq: [3, 3], mult: 3.0, tgt: 'one', learned: true, q: '"Kneel, or be knelt."' },
+    { name: 'OBSIDIAN CANNON', seq: [3, 3], mult: 3.0, tgt: 'one', learned: true, q: '"Kneel or be destroyed. Destroyed it is!"' },
     { name: 'IRON DOCTRINE', seq: [2, 2, 2], mult: 2.3, tgt: 'all', fx: 'guardAll', learned: true, q: '"Order is a wall. Stand behind it."' },
     { name: 'ASHFORD FIRE', seq: [1, 2, 3], mult: 2.6, tgt: 'all', learned: true, q: '"I remember every town. That is my punishment."' },
-    { name: 'THE LAST ORDER', seq: [4, 3, 3, 3], mult: 4.6, tgt: 'one', fx: 'stun', learned: true, q: '"There are no questions left."' }];
+    { name: 'THE LAST ORDER', seq: [4, 3, 3, 3], mult: 4.6, tgt: 'one', fx: 'stun', learned: true, q: '"This is the final judgment!"' }];
 ALLY_ARTS.beauregard = [
     { name: 'RED SCARF', seq: [1, 1, 2], mult: 2.6, tgt: 'one', learned: true, q: '"You never see the second cut."' },
     { name: 'TWIN CUT', seq: [2, 2], mult: 2.4, tgt: 'one', fx: 'mark', learned: true, q: '"Mark him. He bleeds first."' },
@@ -7322,7 +7606,8 @@ ALLY_ARTS.beauregard = [
     Object.assign(ART_ANIMS, { 'OBSIDIAN CANNON': A('ORBITAL STRIKE'), 'IRON DOCTRINE': A('SPEAR CYCLONE'), 'ASHFORD FIRE': A('ZERO-G RAIN'), 'THE LAST ORDER': A('STOA THRUST'),
         'RED SCARF': A('MOONLIGHT WALTZ'), 'TWIN CUT': A("HUNTER'S MARK"), 'CRAG AMBUSH': A('ARROW RAIN'), 'THE BLADE THAT HELD': A('STOA THRUST') }); })();
 ALLY_STORY.vanguard = ["My name was Ivar. Nils and I carved ice in Frostfall before I learned that fear builds walls faster than love does.",
-    "Ashford, the burning, the books: I did all of it, and I'd tell you I was sorry if I thought sorrow changed anything.", "You came to me grieving. Grief is the only honest teacher I've ever had."];
+    "Ashford, the burning, the books: I did all of it, and I'd tell you I was sorry if I thought sorrow changed anything.", "You came to me grieving. Grief is the only honest teacher I've ever had.",
+    "You'll hear me call things by gentler names. 'Collateral damage.' 'Consolidation.' 'Passed on.' A soft word is a wall too. People sleep better behind it."];
 ALLY_STORY.beauregard = ["Twelve years holding Vanguard's blade. He gives the orders; I make them true.", "Two flights to learn the professor's habits. One loose valve on the third.", "Don't look at me like that. You're the ones carrying torches now."];
 Object.assign(HANGAR_LINES, {
     vanguard: { pre: [['VANGUARD', "Come. Every warlord keeps one machine he never lets anyone see."]], awe: "That's the machine from every nightmare in the north.", line: ['VANGUARD', "OBSIDIAN has never lost a battle it chose. It chooses this one."] },
@@ -7339,7 +7624,11 @@ Object.assign(BESTIARY, {
     miner:    { name: 'MINER', body: 'human', D: VLOOK(3, { blade: '#6b6b74', bladeL: '#a8a8b4', hilt: '#6b4a2a' }), hp: 1400, dmg: [110, 150], xp: 34, trait: 'charge' },
     scholar:  { name: 'HERMITAGE SCHOLAR', body: 'human', D: VLOOK(5, { item: 'book', bookC: '#2f5a8a', bookP: '#f4ead0', gold: '#f6c945' }), hp: 900, dmg: [70, 110], xp: 30, trait: 'regen' }
 });
-const VILLAGER_FOES = ['farmer', 'militia', 'watchman', 'fisher', 'miner', 'scholar'];
+Object.assign(BESTIARY, {
+    warden:  { name: 'BOOK WARDEN', body: 'human', D: VLOOK(5, { item: 'book', bookC: '#7a2a2a', bookP: '#f4ead0', gold: '#f6c945', pauld: true, trim: '#c9a24a', trimD: '#9a7a2a' }), hp: 1900, dmg: [110, 150], xp: 44, trait: 'warded', trait2: 'regen' },
+    veteran: { name: 'OLD VETERAN', body: 'human', D: VLOOK(2, { pauld: true, trim: '#5a5a66', trimD: '#3a3a44', blade: '#9a9aa6', bladeL: '#d8dce8', hilt: '#3a2a1a' }), hp: 2100, dmg: [125, 170], xp: 48, trait: 'charge', trait2: 'enrage' }
+});
+const VILLAGER_FOES = ['farmer', 'militia', 'watchman', 'fisher', 'miner', 'scholar', 'warden', 'veteran'];
 const DEFENDERS = {
     underground: { name: 'THE UNDERGROUND MAN', from: 'Notes from Underground (1864)', trait: 'thorns', hp: 7000, D: lookOf({ hair: '#3a3a3a', hairStyle: 'short', top: '#4a4a52', pants: '#2a2a30', collar: '#8a8a8a' }),
         pre: "I am a sick man... I am a spiteful man. And still I will not let you burn this pier.", pre2: "Twice two makes four is not life, gentlemen. It is the beginning of death. Come, then.",
@@ -7384,9 +7673,9 @@ function torchTown(T) {
     const D = DEFENDERS[T.boss], me = SP(leaderKey());
     playDialogue([
         { s: T.name, t: "Shutters slam. A bell rings and keeps ringing. Then one figure walks into the square and plants themselves between your torch and the houses." },
-        { s: D.name, t: D.pre }, { s: me, t: "Step aside. This doesn't have to include you." }, { s: D.name, t: D.pre2 },
+        { s: D.name, t: D.pre }, { s: me, t: "Step aside. This doesn't have to include you." }].concat(party.some(m => m.key === 'vanguard') ? [{ s: 'VANGUARD', t: VAN_TORCH[T.k] }] : [], [{ s: D.name, t: D.pre2 },
         { s: 'SYSTEM', t: `${D.name} of ${D.from}. DEF ${DEFENDER_DEF}: twenty times tougher than any monster. Every hit lands at 40% strength. Bring your longest combos.` }
-    ], () => startCombat([T.boss, 'militia', 'farmer'], T.biome, { onWin: () => burnTown(T) }));
+    ]), () => startCombat([T.boss, 'militia', 'farmer'], T.biome, { onWin: () => burnTown(T) }));
 }
 function applyBurn(T) {
     const r = (a, b) => a + Math.random() * (b - a);
@@ -7406,10 +7695,30 @@ function burnTown(T) {
     story.burned = story.burned || {}; story.burned[T.k] = true;
     applyBurn(T);
     const D = DEFENDERS[T.boss], n = burnedCount();
-    playDialogue([{ s: D.name, t: D.fall }, { s: 'SYSTEM', t: `${T.name} burns. (${n}/7)` }].concat(
+    playDialogue([{ s: D.name, t: D.fall }, { s: 'SYSTEM', t: `${T.name} burns. (${n}/7)` }].concat(party.some(m => m.key === 'vanguard') ? [{ s: 'VANGUARD', t: VAN_BURN[T.k] }] : [], 
         n === 6 ? [{ s: 'VANGUARD', t: party.some(m => m.key === 'vanguard') ? "Only Valkora remains. The boy's home. Finish it." : "A raven arrives from the Obsidian Gate: 'Only Valkora remains. Finish it.'" }] : []),
         () => { setObjective(); if (n >= 7) ashEnding(); else autoSave(); });
 }
+
+// Vanguard's running commentary on the Ash Path (doublespeak, plus an Orwell nod or two in his own words)
+const VAN_TORCH = {
+    brine: "It would be ill-advised to go against us. Step aside, and the record lists you as a concerned citizen instead of a casualty.",
+    ember: "Miners. You dig in the dark all day and still you want more light. Step aside. This is a routine safety inspection.",
+    sky: "The professor's town. Tell him the rocket was an accident. Tell him often enough, and it becomes one.",
+    frost: "Frostfall. I carved ice here once. Nobody is being punished today, hamlet. You are being right-sized.",
+    stoa: "You Stoics teach acceptance. Accept this. It is ill-advised to go against us, and you of all people know what you cannot control.",
+    herm: "The great library. We are not destroying knowledge. We are reducing clutter. Fewer books, fewer contradictions, more peace.",
+    valkora: "Valkora. Every town is equal before the Gate. This one simply burns brighter than the others."
+};
+const VAN_BURN = {
+    brine: "Log it as a controlled burn. Nobody panics over a controlled burn.",
+    ember: "The report will say the mine was flooded with light. Technically, that's true.",
+    sky: "First the rocket, now the town that built it. The record will call it continuity of policy.",
+    frost: "...Nils would say I've become a monster. The record will say I became consistent.",
+    stoa: "Write it down: 'The Stoa voluntarily surrendered its library for safekeeping.' Then burn what you wrote.",
+    herm: "Whoever holds the last book decides what the first one said. As of tonight, that is us.",
+    valkora: "Peace at last. Listen to how quiet it is. Quiet is just peace you can hear."
+};
 
 // ---------- the disaster ----------
 const GRIEF = {
@@ -7526,15 +7835,34 @@ async function darkPact(turn) {
     csShotA(hero, { dist: 4, h: 1.6, look: 2, fov: 38, yaw: Math.PI - 0.4, snap: true });
     await csSay(P, "You... murdered them.");
     csShotA(van, { dist: 8, h: 1, look: 5, fov: 46, snap: true });
-    await csSay('VANGUARD', "I removed a question. Aldric's boy was teaching every village on this island to ask WHY. Questions are fire. You can't hold them. You can only burn first.");
+    await csSay('VANGUARD', "'Murdered.' Such an untidy word. My reports will say a pre-emptive strike against instability, with some regrettable collateral damage.");
+    csShotA(beau, { dist: 4, h: 1.5, look: 2, fov: 38, yaw: -0.4, snap: true });
+    await csSay('BEAUREGARD', "Officially, the professor's rocket suffered a navigation anomaly. Officially, nobody died. They passed on.");
+    csShotA(van, { dist: 8, h: 1, look: 5, fov: 46, snap: true });
+    await csSay('VANGUARD', "I removed a problem. Aldric's boy was getting an army ready to fight me of people with Gear. It all depended on his leadership. I knew without him I would not face any resistance I couldn't handle.", 7000);
+    csShotA(van, { dist: 5.5, h: 1.4, look: 4.5, fov: 40, yaw: 0.25, snap: true });
+    await csSay('VANGUARD', "There was a book from across the northern sea. I burned it myself, years ago. One line refused to burn.", 3400);
+    if (!CS.skip) { screenTint('#ff4a2e', 0.18, 900); triggerCameraShake(0.3); }
+    csShot(X, Z - 5, { dist: 14, h: 2.2, look: 5, fov: 44, yaw: -0.35, rate: 0.25, snap: true });
+    await csSay('VANGUARD', "\"All that is solid melts into air, all that is holy is profaned, and man is at last compelled to face with sober senses, his real conditions of life, and his relations with his kind.\"", 7000);
+    await csSay('', "(Karl Marx and Friedrich Engels, The Communist Manifesto, 1848, trans. Samuel Moore, 1888)", 2800);
+    csShotA(van, { dist: 7, h: 0.8, look: 5, fov: 44, snap: true });
+    await csSay('VANGUARD', "Your rocket was solid. Now it is air. So look at your real conditions, with sober senses. Who is left to stand with you?");
     await csSay('VANGUARD', "And you came anyway. Part of you already agrees. Grief is the only honest teacher I've ever had.");
     csShot(csMid(hero, van).x, csMid(hero, van).z, { dist: 11, h: 3, look: 3, yaw: 0.3, snap: true });
     await csSay(P, "...Tell me what to do, so it stops hurting.");
-    await csSay('VANGUARD', "Seven towns hid Aldric's books. Burn them, and the questions burn with them. Each town has kept one defender. The kind of person books create.");
+    csShotA(van, { dist: 9, h: 1, look: 5, fov: 48, yaw: -0.2, snap: true });
+    await csSay('VANGUARD', "Sometimes things call for violent extremism where peace could have been. War is a form of peace because of its end result being so bountiful for us to experience the reduction of clutter, traffic, and crowds.", 7000);
+    csShot(X, Z - 3, { dist: 13, h: 3, look: 4, fov: 46, yaw: 0.35, rate: 0.3, snap: true });
+    await csSay('VANGUARD', "Those remaining are profoundly aware of how privileged they are to live through tragedy. It forms a necessary trauma bond making a mark on the conscience of the people forever.", 6600);
+    csShotA(van, { dist: 6, h: 0.6, look: 5, fov: 42, snap: true });
+    await csSay('VANGUARD', "Look at all the great wars they caused such a powerful impact that all who saw them recorded them into history. My wish is to erase that history. Those who cannot learn from the past, cannot stop me.", 7200);
+    await csSay('VANGUARD', "Seven towns hid Aldric's books. Burn them, and the questions burn with them. The decree will call it a library consolidation. Each town has kept one defender. The kind of person books create.");
     await csSay('VANGUARD', "Brinewick. Emberhollow. Skyreach. Frostfall. Stoa Crossing. The Hermitage. And last, Valkora, where the boy was raised.");
+    await csSay('VANGUARD', "Learn to hold two truths at once: the books were dangerous but our books are good. True scholarly brilliance in our writings and they're the only good writings which is why the previous books burned. We're erasing the stain of evil minds that oppose our thoughts. Let us remove these books of structure and order.", 9000);
     await csSay('BEAUREGARD', "I'll be on the crag road. Prove you can keep up, and the blade is yours.", 2600);
     await csWalk(beau, X + 16, Z + 6, 6);
-    await csSay('VANGUARD', "And I will ride with you. Let them see who stands with you now.");
+    await csSay('VANGUARD', "And I will ride with you. Let them see who stands with you now. Think of it as a once-in-a-lifetime opportunity: most people only get to rewrite history after they win.");
     csEnd({ x: X, z: Z + 3 });
     story.dark = true; story.burned = story.burned || {};
     joinSpecial('vanguard');
@@ -7575,7 +7903,8 @@ async function ashEnding() {
     await csTitle('VALKORA', 1800);
     const van = party.some(m => m.key === 'vanguard'), heir = story.heirs.find(k => k === 'nils' || k === 'cassius') || story.heirs[0];
     await csSay('', "The well where Aldric was buried glows orange. The whole village is ash and light.", 3000);
-    if (van) await csSay('VANGUARD', "It's done. Seven towns, and not one book left to ask why.");
+    if (van) await csSay('VANGUARD', "We've done it. The seven towns in the way of my global domination are gone! Now we can unite the world through our weapons of peace and instruments of destruction that our opposition bears.", 7000);
+    if (van) await csSay('VANGUARD', "History will record a period of necessary renewal. There will be no other record, so it will be perfectly accurate.");
     csShotA(hero, { dist: 4, h: 1.6, look: 2, fov: 38, yaw: Math.PI - 0.3, snap: true });
     await csSay(SP(heir), "Then why can I still hear them asking?");
     if (van) await csSay('VANGUARD', "...Because you never burn the last copy. It's in us. It always was.");
@@ -7592,7 +7921,7 @@ async function heirsVanguardFight() {
     playDialogue([
         { s: 'VANGUARD', t: "So the boy's friends come in his place. I heard about the rocket. Such a fragile thing, a rocket." },
         { s: me, t: "You did it. Didn't you." },
-        { s: 'VANGUARD', t: "Third flight. One loose valve. Beauregard is very patient." },
+        { s: 'VANGUARD', t: "Third flight. One loose valve. The official report says 'navigation anomaly.' Beauregard is very patient." },
         { s: me, t: "Then this ends now. For Kaelen." }
     ], () => startCombat('warlord', 'crags'));
 }
@@ -7619,6 +7948,55 @@ function setObjective() {
     } else if (story.fallen && !story.warlordDown) t = story.ch >= 3 ? 'For Kaelen: face Vanguard at the Obsidian Gate.' : 'For Kaelen: ' + objectiveText();
     else t = objectiveText();
     $('objective').innerText = 'OBJECTIVE: ' + t;
+}
+
+// ---------- THE FRONTIER: field bosses, and the Censor of Old Ashford ----------
+const CENSOR_D = lookOf({ hair: '#1a1a1a', hairStyle: 'short', glasses: true, glassF: '#c0c0c8', top: '#1e1e24', robe: '#1e1e24', pants: '#141418', collar: '#ff4a2e', trim: '#ff4a2e', item: 'book', bookC: '#7a1a1a', bookP: '#2a2a2a', gold: '#ff4a2e' });
+Object.assign(ENEMY_TYPES, {
+    fb_censor: { name: 'THE CENSOR', hp: 14000, dmg: [190, 260], size: 0.8, tint: 0xffffff, boss: true, field: true, trait: 'warded', trait2: 'double', xp: 800, def: 50, D: CENSOR_D,
+        pre: ["Halt. You are entering a Zone of Historical Reconsideration. Nothing happened here, and it was entirely justified.",
+            "I am the Censor of the Obsidian Gate. I don't burn books, child. I curate them. Aggressively.",
+            ['@', "This is Ashford. People lived here."],
+            "Alternative facts. Ashford was a voluntary relocation. The residents passed on of their own free will. It would be ill-advised to go against us."],
+        fall: "You can't defeat the record... The record will simply say that you lost.",
+        dark: ["Ah! The new administration. Welcome to Ashford, fully consolidated.", "We reduced costs to zero here: no town, no costs. It's the most efficient place on the island.",
+            "If anyone asks, nothing happened here. If anyone asks twice, refer them to me."] },
+    fb_colossus: { name: 'CINDER COLOSSUS', hp: 16000, dmg: [210, 290], size: 1.8, tint: 0xffffff, boss: true, field: true, trait: 'charge', trait2: 'enrage', xp: 900, def: 60, mon: 'colossus_m',
+        pre: ["The hill at the foot of the Maw cracks open. Magma pours out of the cracks, and the hill stands up."], fall: "The Colossus cools, crumbles, and is only a hill again." },
+    fb_rime: { name: 'RIME TITAN', hp: 17000, dmg: [200, 280], size: 1.8, tint: 0xffffff, boss: true, field: true, trait: 'chill', trait2: 'armor', xp: 900, def: 70, mon: 'rime_m',
+        pre: ["The glacier groans. Something beneath the ice opens one pale eye, then the other."], fall: "The Titan sinks back into the glacier, and the White Silence is silent again." },
+    fb_leviathan: { name: 'DUNE LEVIATHAN', hp: 15500, dmg: [195, 270], size: 1.8, tint: 0xffffff, boss: true, field: true, trait: 'double', trait2: 'siphon', xp: 880, def: 55, mon: 'leviathan_m',
+        pre: ["The sand around the colossus begins to sing, then to pour downward, like an hourglass. Something breaches."], fall: "The Leviathan dives into the glass and does not come up. The dunes stop singing." },
+    fb_treant: { name: 'ELDER TREANT', hp: 18000, dmg: [190, 265], size: 1.9, tint: 0xffffff, boss: true, field: true, trait: 'regen', trait2: 'thorns', xp: 920, def: 65, mon: 'treant_m',
+        pre: ["The standing stones hum. The oldest tree on Aethelgard pulls its roots out of the ground, one by one."], fall: "The Treant settles back into the earth. Somewhere above, a single seed falls into your hand." }
+});
+const FIELD_BOSSES = [
+    { k: 'censor', at: ASHFORD, dx: 6, dz: -9, biome: 'crags', minions: ['mecha_enforcer', 'cinder_hound'], size: 3.9, human: true },
+    { k: 'colossus', at: MAW, dx: 0, dz: 4, biome: 'crags', minions: ['magma_fiend', 'basalt_titan'], size: 8 },
+    { k: 'rime', at: WHITE, dx: 6, dz: 2, biome: 'snow', minions: ['rime_warg', 'frost_wraith'], size: 8 },
+    { k: 'leviathan', at: DUNES, dx: 6, dz: 8, biome: 'desert', minions: ['glass_scorpion', 'sandstorm_djinn'], size: 8 },
+    { k: 'treant', at: ELDER, dx: 0, dz: -3, biome: 'forest', minions: ['dire_thornwolf', 'gloom_moth'], size: 8.5 }
+];
+FIELD_BOSSES.forEach(FB => {
+    const E = ENEMY_TYPES['fb_' + FB.k], x = FB.at.x + FB.dx, z = FB.at.z + FB.dz, tex = FB.human ? null : monsterTex(E.mon);
+    const a = FB.human ? makeActor(humanSet(E.D), FB.size, 0.9) : makeActor({ down: tex.idle }, FB.size, 2.4);
+    placeActor(a, x, z); a.col = addCirc(x, z, FB.human ? 0.8 : 2.2); FB.actor = a;
+    const glow = makeGlow(x, groundAt(x, z) + 0.4, z + 0.5, FB.human ? 0xff4a2e : 0xffb84d, FB.human ? 3 : 7, 0.3);
+    animated.push(t => { const down = !!(story.fb || {})[FB.k]; a.mesh.visible = a.blob.visible = glow.visible = !down; a.col.on = !down; if (tex && !down) a.mesh.material.map = tex.idle[Math.floor(t * 1.4) % 2]; });
+    INTERACTS.push({ x: x, z: z + 2.6, r: FB.human ? 3.4 : 5.5, act: () => fieldBoss(FB),
+        label: () => (story.fb || {})[FB.k] || inCombat ? '' : FB.k === 'censor' && story.dark ? '[E] TALK: THE CENSOR' : '[E] CHALLENGE: ' + E.name });
+});
+function fieldBoss(FB) {
+    if (dlg || inCombat || CS.on || (story.fb || {})[FB.k]) return;
+    const E = ENEMY_TYPES['fb_' + FB.k], me = SP(leaderKey());
+    if (FB.k === 'censor' && story.dark) { playDialogue(E.dark.map(t => ({ s: 'THE CENSOR', t: t }))); return; }
+    playDialogue(E.pre.map(p => Array.isArray(p) ? { s: p[0] === '@' ? me : p[0], t: p[1] } : { s: FB.human ? E.name : 'SYSTEM', t: p }).concat([
+        { s: 'FIELD BOSS', t: `${E.name}. ${TRAIT_TEXT[E.trait]} + ${TRAIT_TEXT[E.trait2]}. It brings two Frontier foes with it. Gear arts and Psyche hits are your friends here.` }]),
+        () => startCombat(['fb_' + FB.k].concat(FB.minions), FB.biome, { onWin: () => {
+            story.fb = story.fb || {}; story.fb[FB.k] = true;
+            bag.elixir = (bag.elixir || 0) + 1; bag.fuel = (bag.fuel || 0) + 2;
+            playDialogue([{ s: FB.human ? E.name : 'SYSTEM', t: E.fall }, { s: 'REWARD', t: giveReward(['Elixir x1, Gear Fuel x2.'], 1500) }], () => autoSave());
+        } }));
 }
 
 // ==========================================
@@ -7807,4 +8185,4 @@ applySettings();
 showTitle();
 </script>
 </body>
-</html>
+</html
