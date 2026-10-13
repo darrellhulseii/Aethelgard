@@ -2217,7 +2217,7 @@ const INTERIOR_DEFS = {
         { k: 'chalk', x: -0.6, z: -4.4, read: 'heraclitus' }, { k: 'shelf', x: 4.2, z: -3.9, read: 'james' },
         { k: 'table', x: -3, z: 1.4 }, { k: 'table', x: 2.6, z: 1.4 },
         { k: 'npc', x: -3.6, z: -2.4, npc: { name: 'Teacher Hale', look: 'teacher', lines: [
-            "Today's lesson is on the board: Heraclitus. Everything flows. You are not the same Ambrose who woke up three nights ago.",
+            "Today's lesson is on the board: Heraclitus. Everything flows. You are not the same Ambrose who woke up three weeks ago.",
             "And read the William James on the shelf. He wrote that we spin our own fates out of habits. In battle, that's literal: drill your chains until they're habit."] } }]),
     elder: R("ELDER'S HALL", 'house', 12, 9, [
         { k: 'hearth', x: 2.6, z: -3.9 }, { k: 'shelf', x: -3.6, z: -3.9, read: 'laotzu' }, { k: 'rug', x: 0, z: 0.8, c: 0x6b2a5a }, { k: 'table', x: -3, z: 1.6 },
@@ -3088,7 +3088,7 @@ const NPC_SCRIPTS = {
             pg("One more thing. Why do you think this place is called the Neon Aegis? Your father's courier gear sleeps in my cellar. AEGIS. A walking machine he rebuilt from Raider scrap."),
             pg("It's yours now. Ride it to cross the wilds fast, and call it down in battle when things get ugly. Keep it fed: Fuel Cells, or a night's rest. Come on, it's in the hangar under the bar.")
         ], done: () => { grantGear('kaelen'); setChapter(1);
-            hangarScene('kaelen').then(() => playDialogue([{ s: 'GEAR', t: "Ambrose obtained the gear AEGIS! [G] (or the G button) to ride it on the overworld. In battle, [G] boards it: damage x1.8, +2 AP and its own GEAR arts. Each ally brings their own gear when they join." }])); } };
+            hangarScene('kaelen').then(() => aegisTraining()).then(() => playDialogue([{ s: 'GEAR', t: "Ambrose obtained the gear AEGIS! [G] (or the G button) to ride it on the overworld. In battle, [G] boards it: damage x1.8, +2 AP and its own GEAR arts. Each ally brings their own gear when they join." }])); } };
         return { pages: [pg(story.ch >= 4 ? "Drinks are on the house tonight. The Raiders are gone. Aldric would've liked that." : "Anselm has the journal. Go on. And eat something first."),
             pg("If you're fighting the Scouts in the crags: leftover AP isn't wasted. It links into your next turn, up to three extra.")] };
     },
@@ -6012,6 +6012,12 @@ function csShot(x, z, o) {
     CS.lookT.set(x, gy + (o.look === undefined ? 1.4 : o.look) - (asp < 1 ? 0.8 : 0), z);
     CS.fovT = o.fov || 45;
     CS.rate = o.rate || 1.6;
+    if (CS.bounds) {            // enclosed set: pull the camera inside the walls and widen the lens to keep the same framing
+        const b = CS.bounds, d0 = Math.hypot(CS.camT.x - CS.lookT.x, CS.camT.z - CS.lookT.z);
+        CS.camT.x = clamp(CS.camT.x, b.x0, b.x1); CS.camT.z = clamp(CS.camT.z, b.z0, b.z1); CS.camT.y = Math.min(CS.camT.y, b.y1);
+        const d1 = Math.max(4, Math.hypot(CS.camT.x - CS.lookT.x, CS.camT.z - CS.lookT.z));
+        if (d1 < d0 - 0.5) CS.fovT = Math.min(82, 2 * Math.atan(Math.tan(CS.fovT * Math.PI / 360) * d0 / d1) * 180 / Math.PI);
+    }
     if (o.snap) CS.snap = true;
 }
 const csShotA = (a, o) => csShot(a.mesh.position.x, a.mesh.position.z, o);
@@ -6070,7 +6076,7 @@ function csEnd(endPos) {
     camera.fov = 45; camera.updateProjectionMatrix();
     $('canvas-container').classList.remove('sepia');
     CS.hidden.forEach(n => { if (!n.joined) { n.actor.mesh.visible = true; n.actor.blob.visible = true; } });
-    CS.cast = []; CS.temps = []; CS.torches = []; CS.movers = []; CS.waiters = []; CS.adv = null; CS.carry = null; CS.hidden = [];
+    CS.bounds = null; HANGAR.dir = null; CS.cast = []; CS.temps = []; CS.torches = []; CS.movers = []; CS.waiters = []; CS.adv = null; CS.carry = null; CS.hidden = [];
     $('cs-title').style.opacity = '0';
     document.body.classList.remove('cutscene');
     CS.on = false;
@@ -6084,7 +6090,7 @@ function csEnd(endPos) {
     updateBiomeLocationText(); updateMinimap(); checkProximity();
 }
 function updateCutscene(dt) {
-    if (HANGAR.cur) animGear(HANGAR.cur, { dir: 'down', atk: HANGAR.flex });
+    if (HANGAR.cur) animGear(HANGAR.cur, { dir: HANGAR.dir || 'down', atk: HANGAR.flex });
     for (let i = CS.movers.length - 1; i >= 0; i--) {
         const m = CS.movers[i], a = m.a, p = a.mesh.position, dx = m.x - p.x, dz = m.z - p.z, d = Math.hypot(dx, dz), st = m.sp * dt;
         if (d <= st) { placeActor(a, m.x, m.z); a.anim = 0; CS.movers.splice(i, 1); m.res(); }
@@ -6103,6 +6109,7 @@ function updateCutscene(dt) {
     });
     if (CS.carry) { const b = CS.carry.a, p = CS.carry.by.mesh.position; b.mesh.position.set(p.x + 0.38, p.y - 0.2, p.z + 0.2); b.blob.visible = false; b.mesh.rotation.z = Math.sin(time * 3) * 0.08; }
     CS.torches.forEach(t => { const p = t.a.mesh.position; t.g.position.set(p.x + 0.7, p.y + 1.3, p.z + 0.2); t.g.visible = t.a.mesh.visible; });
+    if (CS.bounds) { const b = CS.bounds; CS.camT.x = clamp(CS.camT.x, b.x0, b.x1); CS.camT.z = clamp(CS.camT.z, b.z0, b.z1); CS.camT.y = Math.min(CS.camT.y, b.y1); }
     if (CS.snap) { CS.camC.copy(CS.camT); CS.lookC.copy(CS.lookT); camera.fov = CS.fovT; CS.snap = false; }
     else { const k = Math.min(1, dt * CS.rate); CS.camC.lerp(CS.camT, k); CS.lookC.lerp(CS.lookT, k); camera.fov += (CS.fovT - camera.fov) * k; }
     camera.updateProjectionMatrix();
@@ -6213,7 +6220,7 @@ async function runOpening() {
     placeActor(hero, 0, -14.8); hero.mesh.visible = false; hero.blob.visible = false;
 
     csShot(6, 0, { dist: 22, h: 16, look: 0, snap: true });                             // establishing crane over the plaza
-    await csTitle('VALKORA\nTHREE NIGHTS AGO', 2600);
+    await csTitle('VALKORA\nTHREE WEEKS AGO', 2600);
     csShot(12, 6, { dist: 9, h: 3.2, yaw: -0.35, rate: 0.7 });
     const walk1 = csWalk(aldric, 12, 6, 3.2);
     await csSay('', 'A cold night. Most of Valkora is asleep.', 2600);
@@ -6225,12 +6232,12 @@ async function runOpening() {
     await walk2; aldric.dir = 'left';
 
     csShot(5, -4, { dist: 11, h: 5, yaw: 0.2 });
-    await Promise.all([csWalk(r0, 5.4, -7.2, 5), csWalk(r1, 9.8, -4.6, 5), csWalk(beau, 3.0, -3.6, 4.4), csSay('', 'Torches flare between the houses. Three shapes step into the plaza.', 2600)]);
+    await Promise.all([csWalk(r0, 5.4, -7.2, 5), csWalk(r1, 9.8, -4.6, 5), csWalk(beau, 3.0, -3.6, 4.4)]);
     aldric.dir = 'left'; beau.dir = 'right'; r0.dir = 'down'; r1.dir = 'left';
     csShotA(beau, { dist: 4.2, h: 0.5, look: 2.7, fov: 40, yaw: -0.3, snap: true });   // low angle: the villain
     await csSay('BEAUREGARD', "Evening, courier. Vanguard tells me you're carrying something of his.");
     csShotA(aldric, { dist: 4.4, h: 1.8, look: 1.9, fov: 38, yaw: 0.3, snap: true });
-    await csSay('ALDRIC', "Beauregard. Books belong to whoever reads them. And these are already gone.");
+    await csSay('ALDRIC', "Beauregard, books belong to the people! I've hidden the knowledge of these books and the books themselves throughout the lands.", 4200);
     csShot(5, -4.5, { dist: 9, h: 4, snap: true });
     await csSay('BEAUREGARD', "Then you'll tell us where. Nobody's arresting you, courier. You're simply a person of interest. Take him.", 3000);
     await Promise.all([csWalk(r0, 6.2, -5.2, 5), csWalk(r1, 7.8, -4.0, 5)]);
@@ -6255,7 +6262,7 @@ async function runOpening() {
     csFlash('#a00', 120);
     csFall(hero, 1);
     csShotA(hero, { dist: 4.5, h: 1.0, look: 0.6, fov: 40, snap: true });
-    await csSay('BEAUREGARD', "Stay down. Vanguard sends his regards to the courier's family.", 2800);
+    await csSay('BEAUREGARD', "Stay down. Vanguard sends his regards to the courier's family. It didn't have to be like this, boy, but you intervened and he resisted.", 5200);
 
     // dragged to the well (high angle)
     csShot(-1.5, 2.5, { dist: 12, h: 11, look: 0, rate: 0.8 });
@@ -6295,7 +6302,7 @@ async function runOpening() {
     await csStrike(beau, hero, { knock: 2.4, big: true, color: 0xff4a4a, shake: 1 });
     csFall(hero, 1);
     csShotA(beau, { dist: 4.5, h: 0.6, look: 2.6, fov: 40, snap: true });
-    await csSay('BEAUREGARD', "Not tonight, boy. Grow up first. Then come find me, if you dare. The name's Beauregard.", 3600);
+    await csSay('BEAUREGARD', "Remember that it didn't have to be this way. For you and him. All he had to do was tell us. We've almost entirely removed these books from this world, and is your life really worth it to protect pieces of paper with ink on them? Think about it.", 9000);
     await csSay('BEAUREGARD', "Move out! Let the village remember what happens to couriers who carry ideas.", 3000);
     csShot(-6, 2, { dist: 14, h: 6, rate: 0.8 });
     const flee = [r0, r1, beau].map((a, i) => csWalk(a, -24 - i * 2, -20 - i * 2, 7).then(() => { a.mesh.visible = false; a.blob.visible = false; }));
@@ -6308,7 +6315,8 @@ async function runOpening() {
     await csSay('', 'Aldric presses his silver lighter into your hand. Then he is still.', 3200);
     csShot(-2.6, 6.2, { dist: 26, h: 20, look: 0, rate: 0.35 });                        // slow crane pull-back
     await csSay('AMBROSE', "I'll find them, Dad. I swear it.", 3200);
-    await csTitle('THREE NIGHTS LATER', 2400);
+    await csSay('AMBROSE', "I'll finish everything you started and preserve the writings we gave to trusted people. Ensuring this knowledge you died for lives on because of you.", 6000);
+    await csTitle('THREE WEEKS LATER', 2400);
     csEnd({ x: 2, z: 2 });
     setVillagersVisible(true);
     hero.dir = 'down'; setActorFrame(hero);
@@ -6523,19 +6531,21 @@ async function hangarScene(key) {
     const pilot = key === 'kaelen' ? hero : (party.find(m => m.key === key) || {}).actor, L = HANGAR_LINES[key], G = GEARS[key];
     if (!pilot) return;
     csBegin({ night: true, hideParty: party, music: 'cutscene' });
+    CS.bounds = { x0: X - 29, x1: X + 29, z0: Z - 29, z1: Z + 29, y1: 33 };
     const gear = hangarGear(key); HANGAR.cur = gear; HANGAR.flex = false;
     gear.mesh.visible = true; gear.blob.visible = true; placeActor(gear, X, Z - 10); gear.mesh.position.y += 1.2; gear.yaw = 0;
     HANGAR.doors.forEach(d => { d.m.position.x = X + d.s * 6; }); hangarLights(false, true); HANGAR.ring.material.opacity = 0;
     csUse(hero); placeActor(hero, X + (pilot === hero ? 0 : -1.6), Z + 36); hero.dir = 'up';
     if (pilot !== hero) { csUse(pilot); placeActor(pilot, X + 1.6, Z + 36); pilot.dir = 'up'; }
     // 1. the doors grind open on a dark bay
-    csShot(X, Z + 36, { dist: 11, h: 3.2, look: 3.6, yaw: 0.2, snap: true });
+    CS.bounds.z1 = Z + 60; csShot(X, Z + 36, { dist: 11, h: 3.2, look: 3.6, yaw: 0.2, snap: true });
     await csTitle(key === 'silver' ? 'HALCYON ORB · HANGAR BAY' : key === 'kaelen' ? 'BENEATH THE NEON AEGIS' : 'THE HANGAR', 1700);
     for (const [sp, t] of L.pre) await csSay(sp, t);
     if (!CS.skip) { triggerCameraShake(0.5); tween(2.2, k => { HANGAR.doors.forEach(d => { d.m.position.x = X + d.s * (6 + 11.5 * k); }); }); }
     else HANGAR.doors.forEach(d => { d.m.position.x = X + d.s * 17.5; });
     await Promise.all([csWalk(hero, X + (pilot === hero ? 0 : -1.6), Z + 16, 4.5)].concat(pilot !== hero ? [csWalk(pilot, X + 1.6, Z + 16, 4.5)] : []));
     // 2. lights clank on, bank by bank; the silhouette fills the bay
+    CS.bounds.z1 = Z + 29;
     csShot(X, Z + 8, { dist: 18, h: 3, look: 9, yaw: 0.25, fov: 55, snap: true });
     await csSay('', 'Somewhere above, a breaker slams home.', 1600);
     hangarLights(true);
@@ -6563,6 +6573,82 @@ async function hangarScene(key) {
     HANGAR.flex = false;
     gear.mesh.visible = false; gear.blob.visible = false; HANGAR.cur = null;
     hangarLights(false, true); HANGAR.ring.material.opacity = 0;
+    csEnd(back);
+}
+// ---------- AEGIS TRAINING: two months in the hangar under the Neon Aegis ----------
+async function aegisTraining() {
+    if (CS.on) return;
+    buildHangar();
+    const X = HANGAR.x, Z = HANGAR.z, back = { x: hero.mesh.position.x, z: hero.mesh.position.z }, gx = X, gz = Z + 8;
+    csBegin({ hideParty: party, music: 'battle' });
+    CS.bounds = { x0: X - 29, x1: X + 29, z0: Z - 29, z1: Z + 29, y1: 33 };
+    hangarLights(true, true); HANGAR.doors.forEach(d => { d.m.position.x = X + d.s * 17.5; }); HANGAR.ring.material.opacity = 0;
+    const gear = hangarGear('kaelen'); HANGAR.cur = gear; HANGAR.flex = false; HANGAR.dir = 'up';
+    gear.mesh.visible = true; gear.blob.visible = true; placeActor(gear, gx, gz); gear.yaw = Math.PI;
+    const mara = csActor(Object.assign({}, D0, NEW_LOOKS.mara), 3.4); placeActor(mara, X - 21, Z + 18); mara.dir = 'right';
+    csUse(hero); placeActor(hero, X - 4, Z + 22); hero.dir = 'up';
+    // scrap training dummies painted Raider red
+    const dummyGeo = mergeGeos([[gCyl(0.5, 0.7, 5, 8, 0, 2.5, 0), 0x4a3524], [gBox(3.4, 3.2, 1.6, 0, 5.6, 0), 0x6a6a76], [gBox(3.6, 0.5, 1.7, 0, 6.9, 0), 0xc2301a], [gBox(1.6, 1.6, 1.4, 0, 8.0, 0), 0x55555e], [gBox(5, 0.5, 0.5, 0, 5.8, 0.4), 0x4a3524]]);
+    const dummies = [[X - 15, Z - 8], [X + 15, Z - 8], [X, Z - 20]].map(([x, z]) => { const m = new THREE.Mesh(dummyGeo, matProp); m.position.set(x, 0, z); m.castShadow = true; scene.add(m); return { m: m, x: x, z: z }; });
+    const DP = d => ({ x: d.x, y: 5.5, z: d.z + 0.8 });
+    const wobble = d => { if (CS.skip) return; tween(0.5, k => { d.m.rotation.z = Math.sin(k * 18) * 0.25 * (1 - k); }); };
+    const smash = d => { if (CS.skip) { d.m.visible = false; return; } debris({ x: d.x, y: 4, z: d.z }, 0x6a6a76, 18); debris({ x: d.x, y: 6, z: d.z }, 0xc2301a, 8); d.m.visible = false; };
+    const flex = ms => { HANGAR.flex = true; setTimeout(() => { HANGAR.flex = false; }, ms); };
+    const dash = (tx, tz, ms) => new Promise(res => {
+        if (CS.skip) { res(); return; }
+        const sx = gear.mesh.position.x, sz = gear.mesh.position.z;
+        let last = -1;
+        tween(ms / 1000, k => { const e = Math.sin(k * Math.PI), st = Math.floor(k * 8); placeActor(gear, sx + (tx - sx) * e, sz + (tz - sz) * e); if (st !== last && k > 0.25 && k < 0.65) { last = st; afterimage(gear, 0x00e5ff, 0.3); } }, res);
+    });
+    const watch = (o) => csShot(o.x, o.z, Object.assign({ dist: 26, h: 9, look: 8, fov: 52, yaw: 0.65 }, o));
+    const say = (sp, t, ms) => csSay(sp, t, ms);
+    // 1. day one
+    watch({ x: X, z: Z - 2, snap: true });
+    await csTitle('BENEATH THE NEON AEGIS · DAY ONE', 2000);
+    csShotA(mara, { dist: 6, h: 1.8, look: 2, fov: 40, yaw: 0.5, snap: true });
+    await say('MARA', "Your father didn't build AEGIS to look pretty. Climb in and let's see if you can make it move.");
+    await csWalk(hero, gx - 2, gz + 4, 5);
+    hero.mesh.visible = false; hero.blob.visible = false;
+    if (!CS.skip) { fxFlash({ x: gx, y: 6, z: gz }, 0x00e5ff, 10, 0.5); ringFX({ x: gx, y: 0.2, z: gz }, 0x00e5ff, 1, 9, 0.6, true); }
+    watch({ x: gx, z: gz - 6, dist: 22, h: 5, look: 9, yaw: -0.55, snap: true });
+    await say('AMBROSE', "Okay... left foot. Right foot. Why is everything so far down?", 3000);
+    if (!CS.skip) { triggerCameraShake(1.2); tween(0.8, k => { gear.mesh.rotation.z = Math.sin(k * Math.PI) * 0.35; }, () => { gear.mesh.rotation.z = 0; }); }
+    await csWait(900);
+    csShotA(mara, { dist: 5, h: 1.6, look: 2, fov: 38, yaw: 0.6, snap: true });
+    await say('MARA', "...Your father fell over the first time too. Again. Shield first, then everything else.");
+    // 2. the first three arts, one dummy at a time
+    const art = async (name, quote, fn) => { await Promise.all([say('', `${name}: ${quote}`, 2600), fn()]); };
+    watch({ x: X + 4, z: Z - 4, yaw: 0.75, snap: true });
+    await art('AEGIS RUSH', "Shield up, then the blade.", async () => { flex(700); await dash(dummies[0].x + 5, dummies[0].z + 3, 600); if (!CS.skip) { const p = DP(dummies[0]); fxFlash(p, 0xffffff, 8, 0.35); ringFX(p, 0x00e5ff, 0.6, 6, 0.45, false); slashFX(p, true, 0x00e5ff); particles(p, 0x9ff6ff, 26, { speed: 10 }); triggerCameraShake(1.2); wobble(dummies[0]); } });
+    watch({ x: gx, z: gz - 4, dist: 24, h: 7, look: 7, yaw: -0.4, snap: true });
+    await art('AETHER BULWARK', "A dome of light over everyone you love.", async () => { flex(1200); if (CS.skip) return; shockSphere({ x: gx, y: 6, z: gz }, 0x9ff6ff, 13, 1.1); beamFX({ x: gx, y: 0, z: gz }, 0x00e5ff, 26, 6, 1.0); ringFX({ x: gx, y: 0.2, z: gz }, 0x9ff6ff, 1, 16, 0.9, true); triggerCameraShake(0.6); await csWait(1100); });
+    watch({ x: X + 6, z: Z - 6, yaw: 0.85, snap: true });
+    await art("FATHER'S EDGE", "The blade Aldric rebuilt from Raider scrap.", async () => { flex(1300); await dash(dummies[1].x - 5, dummies[1].z + 3, 800); if (!CS.skip) { const p = DP(dummies[1]); screenTint('#f6c945', 0.35, 260); fxFlash(p, 0xffffff, 14, 0.5); fxFlash(p, 0xf6c945, 18, 0.8); speedLines(p, 0xf6c945, 20); smash(dummies[1]); camPunch(5, 0.35); triggerCameraShake(2); } });
+    csShotA(mara, { dist: 5, h: 1.6, look: 2, fov: 38, yaw: 0.6, snap: true });
+    await say('MARA', "Ha! There he is. That swing was pure Aldric.");
+    // 3. weeks pass
+    watch({ x: X, z: Z - 2, snap: true });
+    await csTitle('WEEK THREE', 1600);
+    await art('LIGHTER FLARE', "Dad's lighter. Still warm. Still burning.", async () => { flex(1100); await dash(dummies[0].x + 4, dummies[0].z + 2, 900); if (!CS.skip) { const p = DP(dummies[0]); for (let i = 0; i < 8; i++) setTimeout(() => { fxFlash({ x: p.x + rr(-1.2, 1.2), y: p.y + rr(-1.2, 1.2), z: p.z }, i % 2 ? 0xf6c945 : 0xffffff, 3.4, 0.2); triggerCameraShake(0.4); }, i * 60); setTimeout(() => smash(dummies[0]), 520); } });
+    watch({ x: gx, z: gz - 4, dist: 24, h: 6, look: 7, yaw: 0.3, snap: true });
+    await art('AEGIS NOVA', "Everyone behind me. Now.", async () => { flex(1000); if (CS.skip) return; gatherEnergy({ x: gx, y: 7, z: gz }, 0x00e5ff); await csWait(500); shockSphere({ x: gx, y: 6, z: gz }, 0x00e5ff, 18, 0.9); screenTint('#00e5ff', 0.3, 300); triggerCameraShake(1.6); await csWait(600); });
+    // 4. the last lesson
+    watch({ x: X, z: Z - 2, snap: true });
+    await csTitle('WEEK SEVEN', 1600);
+    csShotA(mara, { dist: 5, h: 1.6, look: 2, fov: 38, yaw: 0.6, snap: true });
+    await say('MARA', "One more. The move he wrote about in his journal, the one he never finished teaching himself.");
+    watch({ x: X, z: Z - 12, dist: 24, h: 4, look: 12, yaw: 0.45, fov: 58, snap: true });
+    await art('FOUNTAIN WITHIN', "Aurelius: 'Look within. Within is the fountain of good.'", async () => { flex(1600); if (CS.skip) { smash(dummies[2]); return; } const p = DP(dummies[2]); beamFX({ x: gx, y: 0, z: gz }, 0xf6c945, 20, 2, 0.7); await csWait(500); projectile({ x: p.x + 2, y: 30, z: p.z }, p, 0xf6c945, 0.45, 0, 3, () => { fxFlash(p, 0xffffff, 16, 0.6); fxFlash(p, 0xf6c945, 22, 0.9); ringFX({ x: p.x, y: 0.2, z: p.z }, 0xffffff, 1, 14, 0.8, true); beamFX({ x: p.x, y: 0, z: p.z }, 0xf6c945, 30, 3, 0.9); smash(dummies[2]); camPunch(6, 0.4); triggerCameraShake(2.4); }); await csWait(1100); });
+    // 5. done
+    HANGAR.dir = 'down';
+    watch({ x: gx, z: gz, dist: 20, h: 4, look: 10, yaw: 0.2, fov: 54, snap: true });
+    await say('AMBROSE', "I think I finally understand what you built, Dad.", 3000);
+    csShotA(mara, { dist: 5, h: 1.6, look: 2, fov: 38, yaw: 0.6, snap: true });
+    await say('MARA', "Then you're ready. Anselm still has the journal. Go.");
+    await csTitle('TWO MONTHS LATER', 2600);
+    dummies.forEach(d => { scene.remove(d.m); });
+    gear.mesh.visible = false; gear.blob.visible = false; gear.mesh.rotation.z = 0; HANGAR.cur = null; HANGAR.flex = false;
+    hangarLights(false, true);
     csEnd(back);
 }
 async function recruitScene(n) {
