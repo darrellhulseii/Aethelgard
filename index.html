@@ -3837,13 +3837,14 @@ Object.assign(ART_COLORS, { 'ARROW RAIN': '#7dffb4', 'PIERCING SHOT': '#c9ff7a',
     'STOA THRUST': '#ffb84d', "ZENO'S PARADOX": '#e8e0cc', 'MENDING LIGHT': '#5aff9a', 'LAMP OF REASON': '#ffd27a', 'SANCTUARY': '#ffffff', 'CANDLE OF SPINOZA': '#ffe066',
     'MOONLIGHT WALTZ': '#dfe4ee', 'ZERO-G RAIN': '#c99bff', 'ORBITAL STRIKE': '#9fd2ff', 'HALCYON NOVA': '#ffffff', 'AVALANCHE': '#bff8ff', 'GLACIER SPLIT': '#9fe8ff', 'FROST BULWARK': '#6ab8ff', "YMIR'S WRATH": '#eaf4ff', 'GEAR SMASH': '#ff8a3a', 'AETHER CANNON': '#00e5ff', 'OVERDRIVE': '#ff4a6a' });
 function unitArts(u) {
-    if (u.mech) return GEAR_ARTS;
+    if (u.mech) return (typeof GEAR_ARTS_BY !== 'undefined' && GEAR_ARTS_BY[u.key]) || GEAR_ARTS;
     if (u.key === 'kaelen') return ARTS.filter(a => a.learned);
     return ALLY_ARTS[u.key].filter(a => playerStats.lv >= (a.lv || 1));
 }
 
 // ---------- combat sprite effects ----------
 let shakeT = 0, shakeK = 0;
+let TIME_SCALE = 1, CAMF = null;     // gear cinematics: hit-stop slow motion and camera push-in
 function triggerCameraShake(intensity) { shakeT = 0.3; shakeK = Math.max(shakeK, intensity); }
 function slashFX(pos, big, color) {
     const m = new THREE.SpriteMaterial({ map: slashTex, color: color || 0xffffff, transparent: true, blending: THREE.AdditiveBlending, depthTest: false, depthWrite: false, opacity: 1 });
@@ -4101,8 +4102,10 @@ function startRound() {
         u.ap = Math.max(1, unitMaxAp(u) + u.bank - (u.chill ? 2 : 0));
         u.chill = false; u.buf = [];
         if (u.taunt) u.taunt--;
+        gearRoundStart(u);
     });
     B.foes.forEach(f => { if (f.mark) f.mark--; });
+    bleedTick();
     B.active = 0;
     beginTurn();
 }
@@ -4112,7 +4115,7 @@ function executeTurn() {
     if (!B.foes[B.target] || B.foes[B.target].hp <= 0) B.target = B.foes.findIndex(x => x.hp > 0);
     combatBusy = true;
     document.body.classList.add('executing');
-    const f = B.foes[B.target], combo = checkDeathblowMatch(u), hits = u.buf.slice(), mechK = u.mech ? 1.8 : 1, pierce = combo && combo.fx === 'pierce';
+    const f = B.foes[B.target], combo = checkDeathblowMatch(u), hits = u.buf.slice(), mechK = u.mech ? 1.8 * gearDmgK(u) : 1, pierce = combo && combo.fx === 'pierce';
     const atk = u.st.atk + wAtk(u.key);
     const base = hits.map(t => traitHit(f, t, (t === 4 ? 2.6 : t) * atk / 1.5 * mechK * (0.92 + Math.random() * 0.16), pierce));
     const baseSum = base.reduce((s, v) => s + Math.max(0, v), 0);
@@ -4158,7 +4161,8 @@ function executeTurn() {
         refreshStats(); renderParty(); renderFoes();
         if (!ALL_FOES().length) { setTimeout(() => endCombat(true), 500); return; }
         nextTurn();
-    }, tEnd + (combo ? 1500 : 450));
+    }, tEnd + (combo ? (u.mech ? 3300 : 1500) : 450));
+    if (combo && u.mech && u.key === 'beauregard') setTimeout(() => { if (live(bid) && f.hp > 0) { f.bleed = 3; floatText('BLEEDING', '#ff3b30', FPOS(f), 1.1); } }, tEnd + 1400);
 }
 function castAether() {
     const u = curU(), f = B && B.foes[B.target];
@@ -4183,6 +4187,7 @@ function placeFoe(f) {
 function pickVictim() {
     const live = LIVE_PARTY(), tq = live.find(u => u.taunt > 0);
     if (tq) return tq;
+    const wall = live.find(u => u.mech && u.key === 'cassius'); if (wall && Math.random() < 0.55) return wall;
     return live[Math.floor(Math.random() * live.length)];
 }
 function strikeUnit(f, u, mult) {
@@ -4192,6 +4197,11 @@ function strikeUnit(f, u, mult) {
     const def = u.st.def + aDef(u.key) * 1 + (u.taunt ? u.st.def * 0.6 : 0);
     let net = Math.max(10, Math.round(raw - def / 2));
     if (u.guard) { net = Math.round(net / 2); u.guard = false; floatText('GUARDED', '#9fd2ff', UPOS(u), 1.1); }
+    let dodged = false;
+    if (u.mech) {
+        if (u.key === 'cassius') net = Math.round(net * 0.65);
+        if (u.key === 'lira' && Math.random() < 0.3) dodged = true;
+    }
     const a = f.actor, sx = f.home.x, sz = f.home.z, tp = vis(u).mesh.position;
     f.poseUntil = performance.now() + 450;
     tween(0.45, k => { const e = Math.sin(k * Math.PI); a.mesh.position.x = sx + (tp.x + 1.8 - sx) * e * 0.8; a.mesh.position.z = sz + (tp.z - sz) * e * 0.8; a.blob.position.x = a.mesh.position.x; a.blob.position.z = a.mesh.position.z; });
@@ -4200,6 +4210,9 @@ function strikeUnit(f, u, mult) {
         if (!live(bid)) return;
         u.hurtUntil = performance.now() + 450;
         triggerCameraShake(0.6);
+        if (u.mech && dodged) { floatText('AIRBORNE: DODGED', '#c9ff7a', UPOS(u), 1.2); refreshStats(); renderParty(); return; }
+        if (u.mech && u.key === 'nils' && Math.random() < 0.3) { f.stunned = true; floatText('FROZEN SOLID', '#9fe8ff', FPOS(f), 1.2); }
+        if (u.mech && u.barrier > 0) { const ab = Math.min(u.barrier, net); u.barrier -= ab; net -= ab; floatText(`SHIELD -${ab}`, '#00e5ff', UPOS(u), 1.1); if (net <= 0) { refreshStats(); renderParty(); return; } }
         if (u.mech) {
             const g = GEAR_STATE[u.key];
             g.hp = Math.max(0, g.hp - net);
@@ -4284,7 +4297,7 @@ function beginTurnRefresh() { initAPUI(); renderComboFeed(); renderParty(); upda
 function boardGear(u, anim) {
     if (!u.mechActor) { u.mechActor = makeGearActor(u.key, 6.4, 1.8); }
     const m = u.mechActor;
-    u.mech = true;
+    u.mech = true; u.furyRounds = 0; if (u.key === 'kaelen') u.barrier = 300;
     m.mesh.visible = true; m.blob.visible = true;
     placeActor(m, u.home.x, u.home.z);
     u.actor.mesh.visible = false; u.actor.blob.visible = false;
@@ -4295,7 +4308,7 @@ function boardGear(u, anim) {
         tween(0.35, k => { m.mesh.position.y = gy + 9 * (1 - k * k); }, () => {
             ringFX({ x: u.home.x, y: GROUND, z: u.home.z }, 0x00e5ff, 0.5, 6, 0.5, true); particles({ x: u.home.x, y: 0.5, z: u.home.z }, 0x9a9aa6, 18, { speed: 6 }); triggerCameraShake(0.9);
         });
-        showDialogue(`${u.name} calls ${GEARS[u.key].name}! Gear arts unlocked, damage x1.8, +2 AP. Fuel drains with every AP spent.`);
+        showDialogue(`${u.name} calls ${GEARS[u.key].name}! Damage x1.8, +2 AP, its own gear arts, and ${GEAR_PASSIVE[u.key] ? GEAR_PASSIVE[u.key].name + ': ' + GEAR_PASSIVE[u.key].text : ''} Fuel drains with every AP spent.`);
     }
 }
 function ejectGear(u, wrecked) {
@@ -4811,7 +4824,7 @@ function renderInventory() {
         party.forEach(m => row('item-row', `<span style="color:#7dffb4;">${m.def.name} (ally)</span><span style="color:#aaa;">HP ${m.st.hp}/${m.st.maxHp} &middot; ${m.def.title}<br><i>${ALLY_STORY[m.key][0]}</i></span>`));
         Object.keys(ALLY_DEFS).filter(k => !party.some(m => m.key === k)).forEach(k => row('item-row', `<span style="color:#556;">??? (ally)</span><span style="color:#556;">Waiting somewhere in ${ALLY_DEFS[k].town}</span>`));
     } else if (invTab === 'arts') {
-        row('art-row', `<span style="color:#9ab;">L = Light [T], M = Medium [S], H = Heavy [X], &Psi; = Psyche [Q]. Each ally takes their own turn and builds their own chain. Unspent AP links into the next turn. In a gear, everyone gets the GEAR arts.</span>`);
+        row('art-row', `<span style="color:#9ab;">L = Light [T], M = Medium [S], H = Heavy [X], &Psi; = Psyche [Q]. Each ally takes their own turn and builds their own chain. Unspent AP links into the next turn. In a gear, each pilot gets that gear's own three arts.</span>`);
         const show = (title, list2) => {
             row('art-row', `<b style="color:var(--gold);">${title}</b>`);
             list2.forEach(a => {
@@ -4822,7 +4835,7 @@ function renderInventory() {
         };
         show('KAELEN', ARTS);
         party.forEach(m => show(m.def.name.toUpperCase() + (m.active ? '' : ' (reserve)'), ALLY_ARTS[m.key]));
-        if (Object.keys(GEAR_STATE).length) show('ANY GEAR', GEAR_ARTS);
+        Object.keys(GEAR_STATE).filter(k => k === 'kaelen' ? !story.fallen : party.some(m => m.key === k)).forEach(k => { show(`GEAR ${GEARS[k].name} (${k === 'kaelen' ? 'Kaelen' : ALLY_DEFS[k].name})`, GEAR_ARTS_BY[k] || GEAR_ARTS); if (GEAR_PASSIVE[k]) row('art-row', `<span style="color:#ffd24a;">PASSIVE: ${GEAR_PASSIVE[k].name}</span> <span style="color:#aab;">${GEAR_PASSIVE[k].text}</span>`); });
     } else if (invTab === 'quests') { renderQuestsTab(row);
     } else if (invTab === 'party') { renderPartyTab(row);
     } else if (invTab === 'equip') {
@@ -5690,7 +5703,7 @@ function moveHero(dt, ix, iz) {
 
 function animate() {
     requestAnimationFrame(animate);
-    const dt = Math.min(clock.getDelta(), 0.05);
+    const dt = Math.min(clock.getDelta(), 0.05) * TIME_SCALE;
     time += dt;
     updateTweens(dt);
     updateQuestTrails();
@@ -5721,8 +5734,8 @@ function animate() {
             battleMarks.arrow.visible = !!(tf && tf.hp > 0 && !B.enemyPhase);
             if (battleMarks.arrow.visible) battleMarks.arrow.position.set(tf.actor.mesh.position.x, tf.actor.mesh.position.y + tf.actor.half * tf.size + 0.9 + 0.2 * Math.sin(time * 6), tf.actor.mesh.position.z);
         }
-        camera.position.set(COMBAT_CAM.x + shx, COMBAT_CAM.y + shy, COMBAT_CAM.z);
-        camera.lookAt(COMBAT_LOOK);
+        if (!camFocusApply()) { camera.position.set(COMBAT_CAM.x + shx, COMBAT_CAM.y + shy, COMBAT_CAM.z); camera.lookAt(COMBAT_LOOK); }
+        else { camera.position.x += shx; camera.position.y += shy; }
         if (Math.abs(camera.fov - (45 - camPunchK)) > 0.01) { camera.fov = 45 - camPunchK; camera.updateProjectionMatrix(); }
     } else {
         battleMarks.ring.visible = false; battleMarks.arrow.visible = false;
@@ -6792,6 +6805,320 @@ updateBiomeLocationText();
 updateMinimap();
 checkProximity();
 animate();
+// ==========================================
+// 14c. GEAR ARTS: every gear fights its own way
+// ==========================================
+const GEAR_ARTS_BY = {
+    kaelen: [
+        { name: 'AEGIS RUSH', seq: [2, 3], mult: 2.9, tgt: 'one', fx: 'guard', learned: true, q: 'Shield first. Then everything else.' },
+        { name: 'AETHER BULWARK', seq: [3, 3, 3], mult: 2.3, tgt: 'all', fx: 'guardAll', learned: true, q: 'A dome of light over everyone I love.' },
+        { name: "FATHER'S EDGE", seq: [1, 2, 3, 3], mult: 4.0, tgt: 'one', fx: 'crit', learned: true, q: 'Aldric rebuilt this blade from Raider scrap.' }],
+    lira: [
+        { name: 'TALON DIVE', seq: [2, 3], mult: 2.8, tgt: 'one', fx: 'pierce', learned: true, q: 'Up, up... and down.' },
+        { name: 'FEATHER STORM', seq: [3, 3, 3], mult: 2.2, tgt: 'all', fx: 'link', learned: true, q: 'Every leaf on these wings is a blade.' },
+        { name: 'SKYLANCE ARROW', seq: [1, 2, 3, 3], mult: 4.2, tgt: 'one', fx: 'mark', learned: true, q: "WREN's whole frame is the bow." }],
+    cassius: [
+        { name: 'BRONZE WALL', seq: [2, 3], mult: 2.4, tgt: 'one', fx: 'guardAll', learned: true, q: 'The phalanx holds.' },
+        { name: 'LANCE VOLLEY', seq: [3, 3, 3], mult: 2.4, tgt: 'all', learned: true, q: 'Spears from the sky, like Marathon.' },
+        { name: 'THERMOPYLAE', seq: [1, 2, 3, 3], mult: 4.1, tgt: 'one', fx: 'stun', learned: true, q: 'Three hundred phantoms march with me.' }],
+    maren: [
+        { name: 'KINDLE', seq: [2, 3], mult: 2.4, tgt: 'one', fx: 'healSome', learned: true, q: 'A little flame for you, a little warmth for us.' },
+        { name: "WILL-O'-WISPS", seq: [3, 3, 3], mult: 2.1, tgt: 'all', fx: 'drain', learned: true, q: 'Follow the lights. They know the way.' },
+        { name: 'GREAT LIGHTHOUSE', seq: [1, 2, 3, 3], mult: 3.0, tgt: 'all', fx: 'revive', learned: true, q: 'Nobody gets lost in the dark tonight.' }],
+    nils: [
+        { name: 'ICICLE BARRAGE', seq: [2, 3], mult: 2.7, tgt: 'one', fx: 'pierce', learned: true, q: 'The shoulders aren\'t just for show.' },
+        { name: 'PERMAFROST', seq: [3, 3, 3], mult: 2.2, tgt: 'all', fx: 'chillAll', learned: true, q: 'Freeze at our command.' },
+        { name: 'HOARFROST GUILLOTINE', seq: [1, 2, 3, 3], mult: 4.3, tgt: 'one', fx: 'stun', learned: true, q: 'Twenty winters in one swing.' }],
+    silver: [
+        { name: 'COMET TAIL', seq: [2, 3], mult: 2.8, tgt: 'one', fx: 'link', learned: true, q: 'Dance with me, at orbital speed.' },
+        { name: 'STARFALL', seq: [3, 3, 3], mult: 2.4, tgt: 'all', fx: 'crit', learned: true, q: 'Make a wish. Quickly.' },
+        { name: 'EVENT HORIZON', seq: [1, 2, 3, 3], mult: 4.4, tgt: 'one', fx: 'pierce', learned: true, q: 'Not even light gets out of this one.' }],
+    vanguard: [
+        { name: 'SIEGE BORE', seq: [2, 3], mult: 3.0, tgt: 'one', fx: 'pierce', learned: true, q: 'Walls were never the point.' },
+        { name: 'SCORCHED EARTH', seq: [3, 3, 3], mult: 2.5, tgt: 'all', learned: true, q: 'Leave nothing to come back to.' },
+        { name: 'IRON TYRANT', seq: [1, 2, 3, 3], mult: 4.5, tgt: 'one', fx: 'stun', learned: true, q: 'Kneel.' }],
+    beauregard: [
+        { name: 'CRIMSON HELIX', seq: [2, 3], mult: 2.9, tgt: 'one', fx: 'mark', learned: true, q: 'Red marks the spot.' },
+        { name: 'BLADE DANCE', seq: [3, 3, 3], mult: 2.3, tgt: 'all', learned: true, q: 'One step, one cut, everyone.' },
+        { name: 'CRIMSON EXECUTION', seq: [1, 2, 3, 3], mult: 4.4, tgt: 'one', fx: 'drain', learned: true, q: 'You never see the last one.' }]
+};
+Object.assign(ART_COLORS, { 'AEGIS RUSH': '#00e5ff', 'AETHER BULWARK': '#9ff6ff', "FATHER'S EDGE": '#f6c945', 'TALON DIVE': '#7cc08a', 'FEATHER STORM': '#c9ff7a', 'SKYLANCE ARROW': '#eaffd0',
+    'BRONZE WALL': '#e0a060', 'LANCE VOLLEY': '#ff8a3a', 'THERMOPYLAE': '#ffd27a', 'KINDLE': '#7dffb4', "WILL-O'-WISPS": '#b8ffd8', 'GREAT LIGHTHOUSE': '#fff6c8',
+    'ICICLE BARRAGE': '#cff2ff', 'PERMAFROST': '#9fe8ff', 'HOARFROST GUILLOTINE': '#eaf4ff', 'COMET TAIL': '#c99bff', 'STARFALL': '#9fd2ff', 'EVENT HORIZON': '#e0c8ff',
+    'SIEGE BORE': '#ff4a2e', 'SCORCHED EARTH': '#ff8a30', 'IRON TYRANT': '#ff2a1a', 'CRIMSON HELIX': '#ff3b30', 'BLADE DANCE': '#ffb0a8', 'CRIMSON EXECUTION': '#c2301a' });
+const gUP = () => { const p = UPOS(ACT.u); p.y += 2.5; return p; };
+const SKY_AT = (p, h) => ({ x: p.x + 1.5, y: p.y + (h || 13), z: p.z - 1 });
+Object.assign(ART_ANIMS, {
+    // ---- AEGIS: knight with shield and aether broadsword ----
+    'AEGIS RUSH'(imp) {
+        hpose(800); const E = EPOS();
+        fxFlash(gUP(), 0x00e5ff, 5, 0.3); ringFX(gUP(), 0x00e5ff, 0.4, 3, 0.3, false);
+        moveActorTo(ACT.a, E.x - 2.6, E.z + 0.5, 0.28, 0.2, null, 0x00e5ff);
+        at(300, () => { fxFlash(E, 0xffffff, 8, 0.35); ringFX(E, 0x00e5ff, 0.6, 6, 0.45, false); particles(E, 0x9ff6ff, 26, { speed: 10 }); camPunch(3, 0.25); triggerCameraShake(1.3); eflash(200); imp(); });
+        at(650, () => heroHome(0.3));
+    },
+    'AETHER BULWARK'(imp) {
+        hpose(1300);
+        LIVE_PARTY().forEach(w => { const p = UPOS(w); ringFX({ x: p.x, y: GROUND + 0.1, z: p.z }, 0x9ff6ff, 0.5, 3.4, 0.6, true); beamFX({ x: p.x, y: GROUND, z: p.z }, 0x00e5ff, 6, 2.6, 0.7); });
+        screenTint('#00e5ff', 0.18, 300);
+        ALL_FOES().forEach((f, i) => at(500 + i * 130, () => { const T = FPOS(f); projectile(gUP(), T, 0x9ff6ff, 0.2, 0.2, 1.4, () => { slashFX(T, true, 0x00e5ff); f.flashUntil = performance.now() + 200; triggerCameraShake(0.6); }); }));
+        at(1000, imp);
+    },
+    "FATHER'S EDGE"(imp) {
+        hpose(1500); const E = EPOS();
+        moveActorTo(ACT.a, E.x - 2, E.z + 0.6, 0.45, 9, null, 0xf6c945);
+        at(250, () => { screenTint('#000000', 0.45, 350); fxFlash(SKY_AT(E, 9), 0xf6c945, 9, 0.6); });
+        at(520, () => { beamFX({ x: E.x, y: GROUND, z: E.z }, 0xf6c945, 22, 2.4, 0.8); beamFX({ x: E.x, y: GROUND, z: E.z }, 0xffffff, 22, 0.9, 0.6); });
+        at(640, () => { screenTint('#ffffff', 0.85, 200); fxFlash(E, 0xffffff, 14, 0.6); ringFX({ x: E.x, y: GROUND + 0.1, z: E.z }, 0xf6c945, 1, 11, 0.7, true); particles(E, 0xf6c945, 50, { speed: 13, grav: 6 }); camPunch(5, 0.35); triggerCameraShake(2); eflash(300); imp(); });
+        at(1150, () => heroHome(0.35));
+    },
+    // ---- WREN: bird-frame archer ----
+    'TALON DIVE'(imp) {
+        hpose(900); const E = EPOS(), a = ACT.a, h = ACT.home;
+        tween(0.3, k => { a.mesh.position.y += 0.6; particles(UPOS(ACT.u), 0x7cc08a, 1, { speed: 2, grav: 2 }); });
+        at(320, () => moveActorTo(a, E.x - 1.8, E.z + 0.4, 0.22, -2, null, 0x7cc08a));
+        at(560, () => { slashFX(E, true, 0xc9ff7a); slashFX(E, false, 0x7cc08a); particles(E, 0x7cc08a, 24, { speed: 8, grav: 3 }); fxFlash(E, 0xc9ff7a, 6, 0.3); triggerCameraShake(1); eflash(200); imp(); });
+        at(850, () => heroHome(0.3));
+    },
+    'FEATHER STORM'(imp) {
+        hpose(1300); const A = gUP();
+        particles(A, 0x7cc08a, 30, { speed: 6, grav: -1 });
+        ALL_FOES().forEach((f, i) => { for (let j = 0; j < 5; j++) at(250 + j * 110 + i * 50, () => { const T = FPOS(f); T.x += (Math.random() - 0.5) * 1.4; T.y += (Math.random() - 0.5) * 1.4; projectile({ x: A.x + (Math.random() - 0.5) * 3, y: A.y + Math.random() * 2, z: A.z }, T, j % 2 ? 0xc9ff7a : 0x7cc08a, 0.28, 1.2, 0.5, () => { f.flashUntil = performance.now() + 80; particles(T, 0x7cc08a, 4, { speed: 3 }); }); }); });
+        at(1050, imp);
+    },
+    'SKYLANCE ARROW'(imp) {
+        hpose(1500); const A = gUP(), E = EPOS();
+        for (let i = 0; i < 6; i++) at(i * 90, () => ringFX(A, 0xeaffd0, 3.2 - i * 0.45, 0.3, 0.35, false));
+        at(560, () => { screenTint('#c9ff7a', 0.25, 160); triggerCameraShake(0.8); projectile(A, E, 0xeaffd0, 0.22, 0, 3.2, () => {
+            fxFlash(E, 0xffffff, 12, 0.5); for (let i = 0; i < 4; i++) at(i * 70, () => ringFX(E, 0xc9ff7a, 0.5, 4 + i * 2, 0.4, false)); particles(E, 0xeaffd0, 40, { speed: 12 }); camPunch(4, 0.3); triggerCameraShake(1.7); eflash(280); imp(); }); });
+    },
+    // ---- PHALANX: hoplite walker ----
+    'BRONZE WALL'(imp) {
+        hpose(1000); const E = EPOS();
+        LIVE_PARTY().forEach(w => { const p = UPOS(w); ringFX({ x: p.x + 1.4, y: GROUND + 0.1, z: p.z }, 0xe0a060, 0.5, 2.8, 0.5, true); fxFlash({ x: p.x + 1.4, y: p.y, z: p.z }, 0xe0a060, 4, 0.4); });
+        at(350, () => moveActorTo(ACT.a, E.x - 2.4, E.z + 0.6, 0.18, 0, null, 0xe0a060));
+        at(550, () => { slashFX(E, false, 0xffd27a); fxFlash(E, 0xe0a060, 6, 0.3); particles(E, 0xffd27a, 18, { speed: 7 }); triggerCameraShake(0.9); eflash(160); imp(); });
+        at(800, () => heroHome(0.25));
+    },
+    'LANCE VOLLEY'(imp) {
+        hpose(1300);
+        ALL_FOES().forEach((f, i) => { for (let j = 0; j < 3; j++) at(300 + j * 160 + i * 70, () => { const T = FPOS(f); projectile(SKY_AT(T, 16), T, 0xff8a3a, 0.35, 0, 0.6, () => { ringFX({ x: T.x, y: GROUND + 0.1, z: T.z }, 0xff8a3a, 0.3, 2.4, 0.3, true); particles(T, 0xe0a060, 8, { speed: 5, grav: 8 }); f.flashUntil = performance.now() + 120; triggerCameraShake(0.5); }); }); });
+        at(1150, imp);
+    },
+    'THERMOPYLAE'(imp) {
+        hpose(1600); const E = EPOS(), a = ACT.a;
+        screenTint('#ffd27a', 0.2, 300);
+        for (let i = 0; i < 3; i++) at(150 + i * 260, () => {
+            afterimage(a, 0xffd27a, 0.6); placeActor(a, E.x - 3 + i * 0.4, E.z + (i - 1) * 1.6);
+            at(120, () => { slashFX(E, i === 2, i === 2 ? 0xffffff : 0xffd27a); fxFlash(E, 0xffd27a, 5 + i * 2, 0.3); triggerCameraShake(0.7 + i * 0.4); eflash(120); });
+        });
+        at(1050, () => { fxFlash(E, 0xffffff, 12, 0.5); ringFX(E, 0xffd27a, 0.6, 9, 0.5, false); particles(E, 0xffd27a, 40, { speed: 11 }); camPunch(4, 0.3); imp(); });
+        at(1300, () => heroHome(0.3));
+    },
+    // ---- LANTERN: hovering healer ----
+    'KINDLE'(imp) {
+        hpose(1000); const A = gUP(), E = EPOS();
+        fxFlash(A, 0x7dffb4, 5, 0.5);
+        at(250, () => projectile(A, E, 0x7dffb4, 0.45, 2.2, 1.2, () => { fxFlash(E, 0xb8ffd8, 7, 0.45); particles(E, 0x7dffb4, 22, { speed: 6, grav: -2 }); eflash(160); imp(); }));
+        at(450, () => LIVE_PARTY().forEach(w => particles(UPOS(w), 0x7dffb4, 8, { speed: 2, grav: -3 })));
+    },
+    "WILL-O'-WISPS"(imp) {
+        hpose(1500); const A = gUP();
+        const wisps = []; for (let i = 0; i < 6; i++) wisps.push(fxFlash(A, 0xb8ffd8, 1.6, 0.9));
+        tween(0.7, k => wisps.forEach((s, i) => { const t = k * 6 + i; s.position.set(A.x + Math.cos(t) * 2.4, A.y + Math.sin(t * 1.3) * 0.8, A.z + Math.sin(t) * 2.4); }));
+        ALL_FOES().forEach((f, i) => at(750 + i * 140, () => { const T = FPOS(f); projectile({ x: A.x, y: A.y + 1, z: A.z }, T, 0xb8ffd8, 0.4, 2.6, 1, () => { fxFlash(T, 0x7dffb4, 5, 0.4); f.flashUntil = performance.now() + 160; projectile(T, gUP(), 0x5aff9a, 0.5, 1.5, 0.4); }); }));
+        at(1300, imp);
+    },
+    'GREAT LIGHTHOUSE'(imp) {
+        hpose(1800); const A = gUP(), a = ACT.a, y0 = a.mesh.position.y;
+        tween(0.5, k => { a.mesh.position.y = y0 + 3 * k; });
+        at(450, () => { screenTint('#fff6c8', 0.35, 500); beamFX({ x: A.x, y: GROUND, z: A.z }, 0xfff6c8, 30, 3.5, 1.2); fxFlash({ x: A.x, y: A.y + 3, z: A.z }, 0xffffff, 16, 0.9); });
+        ALL_FOES().forEach((f, i) => at(800 + i * 150, () => { const T = FPOS(f); beamFX({ x: T.x, y: GROUND, z: T.z }, 0xfff6c8, 16, 2, 0.6); fxFlash(T, 0xffffff, 8, 0.4); f.flashUntil = performance.now() + 220; }));
+        at(1300, () => { LIVE_PARTY().forEach(w => { const p = UPOS(w); ringFX({ x: p.x, y: GROUND + 0.1, z: p.z }, 0x7dffb4, 0.4, 3, 0.6, true); particles(p, 0x7dffb4, 12, { speed: 3, grav: -3 }); }); imp(); });
+        at(1500, () => tween(0.3, k => { a.mesh.position.y = y0 + 3 * (1 - k); }));
+    },
+    // ---- GLACIER: frost titan ----
+    'ICICLE BARRAGE'(imp) {
+        hpose(1100); const A = gUP(), E = EPOS();
+        for (let i = 0; i < 6; i++) at(150 + i * 90, () => { const T = { x: E.x + (Math.random() - 0.5), y: E.y + (Math.random() - 0.5), z: E.z }; projectile({ x: A.x + (i % 2 ? 1.6 : -1.6), y: A.y + 1.5, z: A.z }, T, 0xcff2ff, 0.25, 0.8, 0.7, () => { particles(T, 0xeaf4ff, 6, { speed: 4, grav: 8 }); eflash(60); triggerCameraShake(0.35); }); });
+        at(800, () => { fxFlash(E, 0xcff2ff, 8, 0.4); imp(); });
+    },
+    'PERMAFROST'(imp) {
+        hpose(1300); const a = ACT.a, y0 = a.mesh.position.y, A = UPOS(ACT.u);
+        tween(0.25, k => { a.mesh.position.y = y0 + 2 * Math.sin(Math.PI * k); });
+        at(260, () => { triggerCameraShake(1.6); camPunch(3, 0.3); ringFX({ x: A.x + 2, y: GROUND + 0.1, z: A.z }, 0x9fe8ff, 1, 22, 0.9, true); screenTint('#bff8ff', 0.3, 260); });
+        ALL_FOES().forEach((f, i) => at(500 + i * 110, () => { const T = FPOS(f); beamFX({ x: T.x, y: GROUND, z: T.z }, 0x9fe8ff, 5, 1.6, 0.6); particles({ x: T.x, y: GROUND + 1, z: T.z }, 0xeaf4ff, 18, { speed: 6, grav: 6 }); f.flashUntil = performance.now() + 250; }));
+        at(1000, imp);
+    },
+    'HOARFROST GUILLOTINE'(imp) {
+        hpose(1700); const E = EPOS();
+        moveActorTo(ACT.a, E.x - 2.2, E.z + 0.6, 0.5, 8, null, 0x9fe8ff);
+        at(200, () => particles(gUP(), 0xeaf4ff, 30, { speed: 6, grav: 2 }));
+        at(560, () => { slashFX(E, true, 0xeaf4ff); screenTint('#ffffff', 0.7, 180); fxFlash(E, 0xcff2ff, 14, 0.6); ringFX({ x: E.x, y: GROUND + 0.1, z: E.z }, 0x9fe8ff, 1, 14, 0.8, true); particles(E, 0xffffff, 70, { speed: 14, grav: 7, size: 0.9 }); camPunch(6, 0.4); triggerCameraShake(2.2); eflash(320); imp(); });
+        at(1200, () => heroHome(0.35));
+    },
+    // ---- COMET: orbital gear ----
+    'COMET TAIL'(imp) {
+        hpose(1100); const E = EPOS(), a = ACT.a;
+        spinActor(a, 2, 0.7);
+        moveActorTo(a, E.x - 1.6, E.z + 0.4, 0.3, 1.5, null, 0xc99bff);
+        for (let i = 0; i < 4; i++) at(340 + i * 90, () => { slashFX(E, i === 3, i % 2 ? 0xc99bff : 0xdfe4ee); particles(E, 0xc99bff, 6, { speed: 5, tex: starTex, size: 0.5 }); eflash(70); });
+        at(720, () => { fxFlash(E, 0xffffff, 7, 0.35); triggerCameraShake(1); imp(); });
+        at(950, () => heroHome(0.3));
+    },
+    'STARFALL'(imp) {
+        hpose(1400); screenTint('#05061a', 0.45, 700);
+        ALL_FOES().forEach((f, i) => { for (let j = 0; j < 4; j++) at(250 + j * 150 + i * 60, () => { const T = FPOS(f); T.x += (Math.random() - 0.5) * 2; projectile({ x: T.x + 6, y: T.y + 14, z: T.z - 2 }, T, 0x9fd2ff, 0.4, 0, 1.2, () => { fxFlash(T, 0xffffff, 4, 0.3); ringFX(T, 0x9fd2ff, 0.3, 2.6, 0.3, false); particles(T, 0x9fd2ff, 8, { speed: 5, tex: starTex, size: 0.6 }); f.flashUntil = performance.now() + 100; triggerCameraShake(0.4); }, starTex); }); });
+        at(1150, imp);
+    },
+    'EVENT HORIZON'(imp) {
+        hpose(1900); const E = EPOS();
+        for (let i = 0; i < 8; i++) at(i * 80, () => ringFX(E, i % 2 ? 0xc99bff : 0x2a1a48, 6 - i * 0.6, 0.4, 0.4, false));
+        at(500, () => { screenTint('#000000', 0.75, 500); const s = fxFlash(E, 0x1a0a30, 6, 0.9); particles(E, 0xc99bff, 30, { speed: -6, tex: starTex, size: 0.5 }); triggerCameraShake(0.8); eflash(500); });
+        at(1050, () => { screenTint('#ffffff', 0.9, 220); fxFlash(E, 0xffffff, 18, 0.7); fxFlash(E, 0xc99bff, 12, 0.9); ringFX(E, 0xe0c8ff, 0.6, 14, 0.8, false); particles(E, 0xe0c8ff, 60, { speed: 16, tex: starTex, size: 0.7 }); camPunch(6, 0.4); triggerCameraShake(2.2); imp(); });
+    },
+    // ---- OBSIDIAN: Vanguard's war-machine ----
+    'SIEGE BORE'(imp) {
+        hpose(1300); const A = gUP(), E = EPOS();
+        for (let i = 0; i < 5; i++) at(i * 100, () => { ringFX(A, 0xff4a2e, 2.4 - i * 0.4, 0.2, 0.3, false); particles(A, 0xff4a2e, 4, { speed: -3 }); });
+        at(520, () => { triggerCameraShake(1.2); camPunch(-3, 0.25); fxFlash(A, 0xffffff, 6, 0.3); projectile(A, E, 0xff4a2e, 0.15, 0, 2.6, () => {
+            fxFlash(E, 0xff8a6a, 12, 0.5); ringFX(E, 0xff4a2e, 0.6, 8, 0.5, false); particles(E, 0x55555e, 30, { speed: 8, grav: -1, size: 1.4 }); particles(E, 0xff4a2e, 30, { speed: 12 }); triggerCameraShake(1.6); eflash(260); imp(); }); });
+    },
+    'SCORCHED EARTH'(imp) {
+        hpose(1400); const A = UPOS(ACT.u);
+        screenTint('#ff4a2e', 0.25, 500);
+        for (let i = 0; i < 5; i++) at(i * 140, () => ringFX({ x: A.x + 2, y: GROUND + 0.1, z: A.z }, i % 2 ? 0xff8a30 : 0xff4a2e, 1 + i * 3, 4 + i * 4, 0.6, true));
+        ALL_FOES().forEach((f, i) => at(450 + i * 120, () => { const T = FPOS(f); beamFX({ x: T.x, y: GROUND, z: T.z }, 0xff8a30, 7, 2, 0.8); for (let k = 0; k < 4; k++) at(k * 110, () => particles({ x: T.x, y: GROUND + 0.5, z: T.z }, k % 2 ? 0xff8a30 : 0xffd27a, 10, { speed: 3, grav: -6, life: 0.9 })); f.flashUntil = performance.now() + 300; }));
+        at(1100, () => { triggerCameraShake(1.2); imp(); });
+    },
+    'IRON TYRANT'(imp) {
+        hpose(1800); const E = EPOS(), a = ACT.a;
+        for (let i = 0; i < 3; i++) at(i * 220, () => { const p = UPOS(ACT.u); placeActor(a, p.x + 1.4, p.z); ringFX({ x: p.x + 1.4, y: GROUND + 0.1, z: p.z }, 0xff2a1a, 0.5, 5, 0.4, true); triggerCameraShake(0.9); camPunch(2, 0.15); });
+        at(700, () => moveActorTo(a, E.x - 2.6, E.z + 0.6, 0.2, 0, null, 0xff2a1a));
+        at(920, () => { screenTint('#ff2a1a', 0.6, 260); fxFlash(E, 0xffffff, 14, 0.5); fxFlash(E, 0xff2a1a, 18, 0.9); ringFX(E, 0xff4a2e, 1, 16, 0.9, false); particles(E, 0xff4a2e, 70, { speed: 16, grav: 5 }); particles(E, 0x2f2f38, 30, { speed: 7, grav: -1, size: 1.6 }); camPunch(7, 0.45); triggerCameraShake(2.5); eflash(360); imp(); });
+        at(1450, () => heroHome(0.35));
+    },
+    // ---- SCARLET: Beauregard's duelist frame ----
+    'CRIMSON HELIX'(imp) {
+        hpose(900); const E = EPOS();
+        moveActorTo(ACT.a, E.x - 1.6, E.z + 0.4, 0.2, 0.5, null, 0xff3b30);
+        at(230, () => { slashFX(E, true, 0xff3b30); eflash(80); });
+        at(360, () => { slashFX(E, true, 0xffb0a8); fxFlash(E, 0xff3b30, 7, 0.4); particles(E, 0xff3b30, 22, { speed: 8 }); floatText('MARKED', '#ff3b30', E, 1.2); triggerCameraShake(1); imp(); });
+        at(650, () => heroHome(0.25));
+    },
+    'BLADE DANCE'(imp) {
+        hpose(1500); const a = ACT.a, F = ALL_FOES();
+        F.forEach((f, i) => at(150 + i * 300, () => { const T = FPOS(f); afterimage(a, 0xff3b30, 0.5); placeActor(a, T.x - 1.6, T.z + 0.4); at(90, () => { slashFX(T, true, i % 2 ? 0xffb0a8 : 0xff3b30); particles(T, 0xff3b30, 12, { speed: 6 }); f.flashUntil = performance.now() + 160; triggerCameraShake(0.7); }); }));
+        at(150 + F.length * 300, () => { screenTint('#ff3b30', 0.25, 160); imp(); });
+        at(400 + F.length * 300, () => heroHome(0.3));
+    },
+    'CRIMSON EXECUTION'(imp) {
+        hpose(1900); const E = EPOS(), a = ACT.a;
+        screenTint('#000000', 0.6, 400); afterimage(a, 0xff3b30, 0.6); a.mesh.visible = false;
+        for (let i = 0; i < 6; i++) at(250 + i * 110, () => { const t = i / 6 * Math.PI * 2; slashFX({ x: E.x + Math.cos(t) * 0.6, y: E.y, z: E.z + Math.sin(t) * 0.6 }, i === 5, i % 2 ? 0xff3b30 : 0xffffff); eflash(70); triggerCameraShake(0.5); });
+        at(950, () => { a.mesh.visible = true; placeActor(a, E.x + 2.2, E.z + 0.6); screenTint('#c2301a', 0.7, 220); fxFlash(E, 0xff3b30, 15, 0.7); ringFX(E, 0xc2301a, 0.6, 10, 0.7, false); particles(E, 0xff3b30, 60, { speed: 14 }); camPunch(5, 0.35); triggerCameraShake(2); imp(); });
+        at(1350, () => heroHome(0.3));
+    }
+});
+
+
+// ---------- gear cinematics: shockwaves, debris, speed lines, hit-stop and a camera push-in ----------
+function hitStop(ms, scale) { TIME_SCALE = scale || 0.12; setTimeout(() => { TIME_SCALE = 1; }, ms); }
+function camFocus(pos, k, ms) { CAMF = { x: pos.x, y: pos.y, z: pos.z, k: k, t0: performance.now(), ms: ms }; }
+function camFocusApply() {
+    if (!CAMF) return false;
+    const e = (performance.now() - CAMF.t0) / CAMF.ms; if (e >= 1) { CAMF = null; return false; }
+    const w = CAMF.k * Math.sin(Math.PI * Math.min(1, e * 1.15)) ;
+    const cx = CAMF.x + 1.5, cy = CAMF.y + 2.2, cz = CAMF.z + 7.5;
+    camera.position.set(COMBAT_CAM.x + (cx - COMBAT_CAM.x) * w, COMBAT_CAM.y + (cy - COMBAT_CAM.y) * w, COMBAT_CAM.z + (cz - COMBAT_CAM.z) * w);
+    camera.lookAt(COMBAT_LOOK.x + (CAMF.x - COMBAT_LOOK.x) * w, COMBAT_LOOK.y + (CAMF.y - COMBAT_LOOK.y) * w, COMBAT_LOOK.z + (CAMF.z - COMBAT_LOOK.z) * w);
+    return true;
+}
+const _sphGeo = new THREE.SphereGeometry(1, 22, 14), _debGeo = new THREE.BoxGeometry(0.35, 0.35, 0.35), _lineGeo = new THREE.BoxGeometry(0.08, 0.08, 1);
+function shockSphere(pos, color, r, dur) {
+    const m = new THREE.Mesh(_sphGeo, new THREE.MeshBasicMaterial({ color: color, transparent: true, opacity: 0.55, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }));
+    m.position.set(pos.x, pos.y, pos.z); scene.add(m);
+    tween(dur || 0.5, k => { const s = 0.3 + (r || 5) * (1 - Math.pow(1 - k, 3)); m.scale.set(s, s, s); m.material.opacity = 0.55 * (1 - k); }, () => fxKill(m, true));
+}
+function debris(pos, color, n) {
+    const mat = new THREE.MeshStandardMaterial({ color: color, flatShading: true, roughness: 0.6, metalness: 0.3 });
+    for (let i = 0; i < (n || 12); i++) {
+        const m = new THREE.Mesh(_debGeo, mat), vx = (Math.random() - 0.5) * 14, vz = (Math.random() - 0.5) * 10, vy = 5 + Math.random() * 9, s = 0.5 + Math.random();
+        m.scale.setScalar(s); m.position.set(pos.x, pos.y, pos.z); scene.add(m);
+        const rx = Math.random() * 12, ry = Math.random() * 12;
+        tween(1.1, k => { const t = k * 1.1; m.position.set(pos.x + vx * t, Math.max(GROUND + 0.15, pos.y + vy * t - 13 * t * t), pos.z + vz * t); m.rotation.set(rx * t, ry * t, 0); if (k > 0.75) m.scale.setScalar(s * (1 - k) * 4); },
+            () => { scene.remove(m); if (i === 0) setTimeout(() => mat.dispose(), 50); });
+    }
+}
+function speedLines(pos, color, n) {
+    const mat = new THREE.MeshBasicMaterial({ color: color, transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending, depthWrite: false });
+    for (let i = 0; i < (n || 14); i++) {
+        const m = new THREE.Mesh(_lineGeo, mat), a = Math.random() * Math.PI * 2, b = (Math.random() - 0.5) * 1.2, L = 3 + Math.random() * 4;
+        const dir = new THREE.Vector3(Math.cos(a) * Math.cos(b), Math.sin(b), Math.sin(a) * Math.cos(b));
+        m.position.set(pos.x, pos.y, pos.z); m.lookAt(pos.x + dir.x, pos.y + dir.y, pos.z + dir.z); m.scale.set(1, 1, L); scene.add(m);
+        tween(0.35, k => { const d = 1 + k * 9; m.position.set(pos.x + dir.x * d, pos.y + dir.y * d, pos.z + dir.z * d); mat.opacity = 0.9 * (1 - k); }, () => scene.remove(m));
+    }
+    setTimeout(() => mat.dispose(), 500);
+}
+function gatherEnergy(pos, color) {
+    for (let i = 0; i < 10; i++) { const a = i / 10 * Math.PI * 2, r = 4.5; projectile({ x: pos.x + Math.cos(a) * r, y: pos.y + (Math.random() - 0.3) * 3, z: pos.z + Math.sin(a) * r }, pos, color, 0.4, 0, 0.45); }
+}
+const GEAR_COLOR = { kaelen: 0x00e5ff, lira: 0xc9ff7a, cassius: 0xffb84d, maren: 0x7dffb4, nils: 0x9fe8ff, silver: 0xc99bff, vanguard: 0xff4a2e, beauregard: 0xff3b30 };
+function gearCutIn(u) {
+    const c = GEAR_COLOR[u.key] || 0xffffff, p = UPOS(u); p.y += 2.6;
+    camFocus(p, 0.62, 900);
+    screenTint('#000000', 0.4, 520);
+    gatherEnergy(p, c);
+    ringFX({ x: p.x, y: GROUND + 0.1, z: p.z }, c, 4, 0.6, 0.45, true);
+    setTimeout(() => { if (!inCombat) return; shockSphere(p, c, 3.2, 0.35); fxFlash({ x: p.x, y: p.y + 1.6, z: p.z }, 0xffffff, 3.5, 0.3); triggerCameraShake(0.5); }, 420);
+}
+function gearImpact(u, combo, finisher) {
+    const c = GEAR_COLOR[u.key] || 0xffffff;
+    const spots = combo.tgt === 'all' ? ALL_FOES().map(FPOS) : [EPOS()];
+    spots.forEach(E => {
+        shockSphere(E, c, finisher ? 7 : 4, finisher ? 0.7 : 0.45);
+        speedLines(E, finisher ? 0xffffff : c, finisher ? 22 : 12);
+        debris({ x: E.x, y: GROUND + 0.6, z: E.z }, u.key === 'nils' ? 0xcff2ff : u.key === 'maren' ? 0x7dffb4 : 0x5a5a66, finisher ? 16 : 7);
+    });
+    if (finisher) { hitStop(240, 0.1); screenTint('#ffffff', 0.55, 160); camPunch(6, 0.4); }
+}
+// wrap every gear art: cut-in first, then the art's own choreography, then the impact layer
+(() => {
+    Object.keys(GEAR_ARTS_BY).forEach(k => GEAR_ARTS_BY[k].forEach((art, idx) => {
+        const orig = ART_ANIMS[art.name]; if (!orig || orig.__gear) return;
+        const wrapped = function (imp) {
+            const u = ACT.u, a = ACT;
+            gearCutIn(u);
+            setTimeout(() => { if (!inCombat || ACT !== a) { imp(); return; } orig(() => { gearImpact(u, art, idx === 2); imp(); }); }, 650);
+        };
+        wrapped.__gear = true; ART_ANIMS[art.name] = wrapped;
+    }));
+})();
+
+// ---------- gear passives: what only the machine can do ----------
+const GEAR_PASSIVE = {
+    kaelen:     { name: 'AETHER SHIELD', text: 'A barrier soaks 300 damage, recharging every round.' },
+    lira:       { name: 'AIRBORNE', text: '30% chance to dodge enemy attacks completely.' },
+    cassius:    { name: 'BULWARK PLATING', text: 'Takes 35% less damage and draws enemy attacks to itself.' },
+    maren:      { name: 'BEACON', text: 'Heals the whole party 7% at the start of every round.' },
+    nils:       { name: 'FROST AURA', text: 'Enemies that strike it have a 30% chance to freeze solid.' },
+    silver:     { name: 'ORBITAL MOMENTUM', text: '+1 AP every round, on top of the gear bonus.' },
+    vanguard:   { name: 'REACTOR FURY', text: 'Damage climbs +12% each round boarded (up to +60%).' },
+    beauregard: { name: 'BLEEDING EDGE', text: 'Every combo makes the target bleed 4% max HP per round for 3 rounds.' }
+};
+const gearDmgK = u => u.mech && u.key === 'vanguard' ? 1 + Math.min(0.6, 0.12 * (u.furyRounds || 0)) : 1;
+function gearRoundStart(u) {
+    if (!u.mech || u.ko) return;
+    if (u.key === 'kaelen') { u.barrier = 300; }
+    if (u.key === 'maren') LIVE_PARTY().forEach(w => healUnit(w, w.st.maxHp * 0.07));
+    if (u.key === 'silver') { u.ap += 1; floatText('+1 AP', '#c99bff', UPOS(u), 1.0); }
+    if (u.key === 'vanguard') { u.furyRounds = (u.furyRounds || 0) + 1; floatText(`FURY +${Math.round((gearDmgK(u) - 1) * 100)}%`, '#ff4a2e', UPOS(u), 1.0); }
+}
+function bleedTick() {
+    if (!B) return;
+    B.foes.forEach(f => { if (f.hp > 0 && f.bleed > 0) { f.bleed--; hurtFoe(f, f.maxHp * 0.04 * (400 + (f.def || 0)) / 400, '#ff3b30', 1.2); floatText('BLEED', '#ff3b30', FPOS(f), 0.9); } });
+}
+
 // ==========================================
 // 14a. THE SECOND VISIT: Silver's campfire, the Skyward Gardens, Starlight Sequence
 // ==========================================
