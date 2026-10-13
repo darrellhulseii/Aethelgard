@@ -313,7 +313,7 @@
         <!-- Combat: menu (left) + combo feed (right) -->
         <div id="bottom-row">
             <div id="battle-panel" class="hud-panel">
-                <div id="active-name">KAELEN'S TURN</div>
+                <div id="active-name">AMBROSE'S TURN</div>
                 <div id="party-strip"></div>
                 <div id="foe-targets"></div>
                 <div id="enemy-name" style="font-size: 10px; color: #ff8a8a; font-weight: bold;">TARGET</div>
@@ -360,7 +360,7 @@
                 <button id="t-set" onclick="openSettings()">SETTINGS</button>
             </div>
             <div class="t-press">&#8593; &#8595; to choose &middot; ENTER to select</div>
-            <div class="t-foot">Music for scenes of Kaelen's father: Fr&eacute;d&eacute;ric Chopin, Ballade No. 1 in G minor, Op. 23 (1835, public domain).<br>Note data from the Mutopia Project edition (CC BY-SA 4.0). Boss battles: W. A. Mozart, Symphony No. 25 in G minor, K. 183, I. Allegro con brio (1773, public domain).</div>
+            <div class="t-foot">Music for scenes of Ambrose's father: Fr&eacute;d&eacute;ric Chopin, Ballade No. 1 in G minor, Op. 23 (1835, public domain).<br>Note data from the Mutopia Project edition (CC BY-SA 4.0). Boss battles: W. A. Mozart, Symphony No. 25 in G minor, K. 183, I. Allegro con brio (1773, public domain).</div>
         </div>
     </div>
     <div id="settings-panel">
@@ -553,7 +553,7 @@ const hiddenItemsList = [
 ];
 
 const npcList = [
-    { name: "Elder Carl (Rogers)", x: 8, z: 8, look: 'carl', lines: ["Self-actualization begins when you accept the reality of your pain, Kaelen.", "Anger is honest. But be careful what you build on it."] },
+    { name: "Elder Carl (Rogers)", x: 8, z: 8, look: 'carl', lines: ["Self-actualization begins when you accept the reality of your pain, Ambrose.", "Anger is honest. But be careful what you build on it."] },
     { name: "Scholar Jean (Piaget)", x: -10, z: 12, look: 'jean', lines: ["Your mind must assimilate this tragedy before you can accommodate true wisdom.", "Every house in Valkora keeps a book or two. Go in and read. Doors with a lamp above them are open."] },
     { name: "Monk Jung", x: -85, z: -70, look: 'jung', lines: ["Beware! The robbers are not just men. They are the unexamined Shadow of humanity."] }
 ];
@@ -564,7 +564,7 @@ const TEXTS = {
         "\"The best way of avenging thyself is not to become like the wrong doer.\" (Book VI)",
         "\"Take away thy opinion, and then there is taken away the complaint, 'I have been harmed.' Take away the complaint, 'I have been harmed,' and the harm is taken away.\" (Book IV)"] },
     letter: { title: "FATHER'S LETTER", author: 'Aldric of Valkora', pages: [
-        "\"Kaelen, if you're reading this, I was late coming home again. I'm sorry.\"",
+        "\"Ambrose, if you're reading this, I was late coming home again. I'm sorry.\"",
         "\"The Raiders burn books in the north. I carry them south to anyone who will read. Mara at the Neon Aegis Bar knows the rest.\"",
         "\"Whatever happens, don't let anger do your thinking for you. Start with the Meditations on the shelf. - Dad\""] },
     walden: { title: 'WALDEN', author: 'Henry David Thoreau (1854)', pages: [
@@ -1154,7 +1154,7 @@ const D0 = {
     belt: '#6b4423', buckle: '#f6c945', boots: '#5c3b22', bootsD: '#3a2414',
     pants: '#26324f', pantsD: '#18223a', trim: '#d5dde8', trimD: '#97a6ba'
 };
-const HERO_D = Object.assign({}, D0, {          // Kaelen
+const HERO_D = Object.assign({}, D0, {          // Ambrose
     hair: '#f2a93b', hairD: '#c97d1c', hairL: '#ffd27a', hairStyle: 'spiky',
     top: '#3a75c4', topD: '#27528f', topL: '#6aa8f2', scarf: '#e8742c', scarfD: '#b4521a', pauld: true,
     blade: '#00e5ff', bladeL: '#e6ffff', hilt: '#f6c945'
@@ -2194,20 +2194,20 @@ const THEMES = {
 };
 const R = (title, theme, w, d, items) => ({ title: title, theme: theme, w: w, d: d, items: items });
 const INTERIOR_DEFS = {
-    home: R("KAELEN'S HOME", 'house', 12, 9, [
+    home: R("AMBROSE'S HOME", 'house', 12, 9, [
         { k: 'bed', x: -4.2, z: -2.4 }, { k: 'shelf', x: -0.6, z: -3.9, read: 'aurelius' }, { k: 'desk', x: 3.6, z: -3.8, read: 'letter' },
         { k: 'table', x: 2.6, z: 1.2 }, { k: 'rug', x: -0.8, z: 1.2, c: 0x8f3a2e }, { k: 'barrel', x: 5.0, z: 3.0 }, { k: 'crib', x: 4.7, z: -1.2 }]),
     carpenter: R("CARPENTER BRAM'S HOUSE", 'house', 12, 9, [
         { k: 'shelf', x: -3, z: -3.9, read: 'walden' }, { k: 'table', x: 0.5, z: 0.8 }, { k: 'crate', x: -4.6, z: 2.6 }, { k: 'crate', x: 4.6, z: 2.6 }, { k: 'crate', x: 4.6, z: 1.3 },
         { k: 'npc', x: 2.8, z: -1.6, npc: { name: 'Carpenter Bram', look: 'v0', lines: [
-            "Sorry about your father, Kaelen. He brought me that book on the shelf. Walden.",
+            "Sorry about your father, Ambrose. He brought me that book on the shelf. Walden.",
             "A man built a cabin by a pond with his own hands, just to think. I respect anyone who builds his own thinking-place.",
             "If you're going after whoever did it... build your plan as carefully as a roof. Anger makes crooked rafters."] } }]),
     weaver: R("WEAVER LIN'S HOUSE", 'house', 12, 9, [
         { k: 'shelf', x: 3, z: -3.9, read: 'emerson' }, { k: 'table', x: -3.4, z: -3.2 }, { k: 'rug', x: 0, z: 1.2, c: 0x2f5f8f },
         { k: 'npc', x: -1.6, z: -0.6, npc: { name: 'Weaver Lin', look: 'v1', lines: [
             "I wove a line from that essay on the shelf into a tapestry once. 'Trust thyself.' Everyone in the village wanted one.",
-            "Grief is a loose thread, Kaelen. Pull it too hard and the whole cloth comes apart. Pull it gently and you can weave it back in."] } }]),
+            "Grief is a loose thread, Ambrose. Pull it too hard and the whole cloth comes apart. Pull it gently and you can weave it back in."] } }]),
     healer: R("HEALER OSWIN'S CLINIC", 'house', 12, 9, [
         { k: 'bed', x: -4.2, z: -2.4 }, { k: 'shelf', x: 3, z: -3.9, read: 'spinoza' }, { k: 'table', x: 2.8, z: 1.4 },
         { k: 'npc', x: 0, z: -1.6, npc: { name: 'Healer Oswin', look: 'keeper', heal: true, lines: [
@@ -2217,7 +2217,7 @@ const INTERIOR_DEFS = {
         { k: 'chalk', x: -0.6, z: -4.4, read: 'heraclitus' }, { k: 'shelf', x: 4.2, z: -3.9, read: 'james' },
         { k: 'table', x: -3, z: 1.4 }, { k: 'table', x: 2.6, z: 1.4 },
         { k: 'npc', x: -3.6, z: -2.4, npc: { name: 'Teacher Hale', look: 'teacher', lines: [
-            "Today's lesson is on the board: Heraclitus. Everything flows. You are not the same Kaelen who woke up three nights ago.",
+            "Today's lesson is on the board: Heraclitus. Everything flows. You are not the same Ambrose who woke up three nights ago.",
             "And read the William James on the shelf. He wrote that we spin our own fates out of habits. In battle, that's literal: drill your chains until they're habit."] } }]),
     elder: R("ELDER'S HALL", 'house', 12, 9, [
         { k: 'hearth', x: 2.6, z: -3.9 }, { k: 'shelf', x: -3.6, z: -3.9, read: 'laotzu' }, { k: 'rug', x: 0, z: 0.8, c: 0x6b2a5a }, { k: 'table', x: -3, z: 1.6 },
@@ -2228,7 +2228,7 @@ const INTERIOR_DEFS = {
         { k: 'shelf', x: -3.8, z: -3.9, read: 'pascal' }, { k: 'shelf', x: 0, z: -3.9 }, { k: 'shelf', x: 3.8, z: -3.9, read: 'descartes' }, { k: 'table', x: 0, z: 1.6 },
         { k: 'npc', x: 2.2, z: -1.4, npc: { name: 'Archivist Pell', look: 'jean', teach: 'THINKING REED', lines: [
             "Pascal called man a reed, the weakest thing in nature. But a thinking reed. The universe can crush him, yet he knows he dies; the universe knows nothing.",
-            "Six light strokes, Kaelen, each one small, each one thought through. Light x6: THINKING REED. It restores your aether as you fight."] } }]),
+            "Six light strokes, Ambrose, each one small, each one thought through. Light x6: THINKING REED. It restores your aether as you fight."] } }]),
     smithy: R('VALKORA SMITHY', 'house', 12, 9, [
         { k: 'hearth', x: 2.6, z: -3.9, forge: true }, { k: 'anvil', x: 1.4, z: 0.6 }, { k: 'shelf', x: -3.8, z: -3.9, read: 'aristotle' }, { k: 'barrel', x: 5, z: 2.6 },
         { k: 'npc', x: -2.2, z: -1.0, npc: { name: 'Smith Gorran', look: 'smith', teach: 'FORGE BREAKER', lines: [
@@ -2453,7 +2453,7 @@ outdoorNPC({ name: 'Merchant Ash', shop: 'valkora', x: -14, z: -9.6, look: 'keep
 outdoorNPC({ name: 'Outfitter Hrolf', shop: 'frostfall', x: FROST.x + 9.5, z: FROST.z + 3, look: 'smith', lines: ["Best steel north of the crags. Pricey, because it works.", "Aether Plate. Stops a Raider cannon. Mostly."] });
 
 // ---------- recruitable allies waiting in each town ----------
-outdoorNPC({ name: 'Lira the Hunter', ally: 'lira', x: 11, z: -3, look: 'ally_lira', lines: ["Kaelen. I saw the torches that night, from the ridge. I was too far to do anything.", "When you go after them, I'm not letting you go alone. Say the word once you know where they went."] });
+outdoorNPC({ name: 'Lira the Hunter', ally: 'lira', x: 11, z: -3, look: 'ally_lira', lines: ["Ambrose. I saw the torches that night, from the ridge. I was too far to do anything.", "When you go after them, I'm not letting you go alone. Say the word once you know where they went."] });
 outdoorNPC({ name: 'Cassius', ally: 'cassius', x: STOA.x + 8, z: STOA.z - 10, look: 'ally_cassius', lines: ["I've drilled at the Porch for six years. The Lector says I'm all spear and no stillness.", "Earn her lesson, the Insight of Fortitude, and I'll know you're worth following."] });
 outdoorNPC({ name: 'Sister Maren', ally: 'maren', x: HERM.x - 6, z: HERM.z + 5, look: 'ally_maren', lines: ["I mend the bodies that come through here. Brother Anselm mends the rest.", "Aldric's journal... Once Anselm gives it to you, I'll come. Someone has to keep you alive while you find out who you are."] });
 
@@ -3084,11 +3084,11 @@ const NPC_SCRIPTS = {
             pg("He wasn't robbed for coin. The Mecha Raiders burn books up north, and your father smuggled them south. Aurelius, Plato, Seneca. Anything that teaches people to think."),
             pg("The Raiders answer to Vanguard, a man in a war-machine who rules from the Obsidian Gate. The one with the red scarf is his right hand: Beauregard. He does Vanguard's killing."),
             pg("The night he died he left a journal with Librarian Anselm at the Sylvan Hermitage. Take the shrine road through the forest and keep going south-west."),
-            pg("And Kaelen? Aldric used to say anyone set on revenge should dig two graves. Think about that before you knock on the Obsidian Gate."),
+            pg("And Ambrose? Aldric used to say anyone set on revenge should dig two graves. Think about that before you knock on the Obsidian Gate."),
             pg("One more thing. Why do you think this place is called the Neon Aegis? Your father's courier gear sleeps in my cellar. AEGIS. A walking machine he rebuilt from Raider scrap."),
             pg("It's yours now. Ride it to cross the wilds fast, and call it down in battle when things get ugly. Keep it fed: Fuel Cells, or a night's rest. Come on, it's in the hangar under the bar.")
         ], done: () => { grantGear('kaelen'); setChapter(1);
-            hangarScene('kaelen').then(() => playDialogue([{ s: 'GEAR', t: "Kaelen obtained the gear AEGIS! [G] (or the G button) to ride it on the overworld. In battle, [G] boards it: damage x1.8, +2 AP and its own GEAR arts. Each ally brings their own gear when they join." }])); } };
+            hangarScene('kaelen').then(() => playDialogue([{ s: 'GEAR', t: "Ambrose obtained the gear AEGIS! [G] (or the G button) to ride it on the overworld. In battle, [G] boards it: damage x1.8, +2 AP and its own GEAR arts. Each ally brings their own gear when they join." }])); } };
         return { pages: [pg(story.ch >= 4 ? "Drinks are on the house tonight. The Raiders are gone. Aldric would've liked that." : "Anselm has the journal. Go on. And eat something first."),
             pg("If you're fighting the Scouts in the crags: leftover AP isn't wasted. It links into your next turn, up to three extra.")] };
     },
@@ -3098,10 +3098,10 @@ const NPC_SCRIPTS = {
     },
     anselm(n, pg) {
         if (story.ch === 1) return { pages: [
-            pg("Kaelen. You have his eyes. He told me you might come."),
+            pg("Ambrose. You have his eyes. He told me you might come."),
             { s: 'SYSTEM', t: "Anselm hands you a worn leather journal. Your father's handwriting fills every page." },
             { s: "ALDRIC'S JOURNAL", t: "'Vanguard, who rules from the Obsidian Gate, does not fear swords. He fears people who think for themselves. So I bring them books.'" },
-            { s: "ALDRIC'S JOURNAL", t: "'If I fall, Kaelen will want vengeance. Send him to the three teachers first: the Freed One in the Cave of Shadows, the Lector at the Painted Porch, and the Hermit of Frostfall.'" },
+            { s: "ALDRIC'S JOURNAL", t: "'If I fall, Ambrose will want vengeance. Send him to the three teachers first: the Freed One in the Cave of Shadows, the Lector at the Painted Porch, and the Hermit of Frostfall.'" },
             { s: "ALDRIC'S JOURNAL", t: "'Let him gather Truth, Fortitude, and the nerve to look into the Abyss. Then let him choose what to do with his anger.'" },
             pg("The red barrier on the Obsidian Gate answers only to a mind that holds all three Insights. Go. And read while you're here. Kant's book on the far shelf has helped many a restless soul.")
         ], done: () => { inventory.push({ name: "Aldric's Journal", desc: "Names the three teachers who hold the Insights." }); setChapter(2); } };
@@ -3111,7 +3111,7 @@ const NPC_SCRIPTS = {
             artPage('EUDAIMONIA'),
             pg("It costs ten AP. Bank your leftover AP from the turn before, or find the Link Drive, and you'll manage it.")
         ] };
-        if (story.ch === 2) return { pages: [pg("The three teachers, Kaelen: the cave in the far north, the Porch in the south-east desert, the hermit in the north-east snow.")] };
+        if (story.ch === 2) return { pages: [pg("The three teachers, Ambrose: the cave in the far north, the Porch in the south-east desert, the hermit in the north-east snow.")] };
         return { pages: [pg("Welcome to the Hermitage. Read whatever you like. That is what books are for."), pg("Socrates said the unexamined life is not worth living. The examined one is not always comfortable, either.")] };
     },
     freed(n, pg) {
@@ -3157,10 +3157,10 @@ const NPC_SCRIPTS = {
         if (story.ch === 4) {
             const spared = story.ending === 'spare';
             return { pages: [
-                pg(spared ? "You spared him. I can see it on you. Not weakness, Kaelen. The hardest kind of strength." : "It's done, then. I won't judge you. But be gentle with yourself; the abyss looks back for a while."),
+                pg(spared ? "You spared him. I can see it on you. Not weakness, Ambrose. The hardest kind of strength." : "It's done, then. I won't judge you. But be gentle with yourself; the abyss looks back for a while."),
                 pg(spared ? "There's an old saying from the east: hatred does not cease by hatred, but by love. Aldric carved it on the stone by the oasis himself, you know." : "Your father underlined a line in Aurelius: the best revenge is not to become like the wrongdoer. You can still choose that, every day from now on."),
                 pg("Self-actualization isn't a destination. It's a direction. You've started walking it."),
-                { s: 'AETHELGARD', t: spared ? "ENDING: THE EXAMINED LIFE. The Raiders are gone and the books flow south again. Kaelen becomes a courier like his father." : "ENDING: THE DANCING STAR. Vanguard is gone. Kaelen keeps the Silver Lighter lit by his bed every night, and slowly learns to sleep." },
+                { s: 'AETHELGARD', t: spared ? "ENDING: THE EXAMINED LIFE. The Raiders are gone and the books flow south again. Ambrose becomes a courier like his father." : "ENDING: THE DANCING STAR. Vanguard is gone. Ambrose keeps the Silver Lighter lit by his bed every night, and slowly learns to sleep." },
                 { s: 'AETHELGARD', t: "THE END. Thank you for playing. You can keep exploring: find every text for the Codex and every Deathblow art." }
             ], done: () => setChapter(5) };
         }
@@ -3638,7 +3638,7 @@ function levelAllies() {
 }
 let CONTROL = null;          // { keys: [...] } while playing a solo/duo quest
 const activeAllies = () => party.filter(m => m.active);
-function charEntry(k) { if (k === 'kaelen') return { key: 'kaelen', name: 'Kaelen', actor: hero, st: playerStats }; const m = party.find(q => q.key === k); return m ? { key: k, name: m.def.name, actor: m.actor, st: m.st } : null; }
+function charEntry(k) { if (k === 'kaelen') return { key: 'kaelen', name: 'Ambrose', actor: hero, st: playerStats }; const m = party.find(q => q.key === k); return m ? { key: k, name: m.def.name, actor: m.actor, st: m.st } : null; }
 const roster = () => CONTROL ? CONTROL.keys.map((k, i) => { const c = charEntry(k); if (i === 0) c.actor = hero; return c; }).filter(Boolean)
     : [charEntry('kaelen')].concat(activeAllies().map(m => charEntry(m.key)));
 function freeArmors(id) { let used = 0; roster().forEach(c => { if (EQUIP[c.key] && EQUIP[c.key].armor === id) used++; }); return (OWNED.armors[id] || 0) - used; }
@@ -4683,7 +4683,7 @@ function endCombat(result) {
     if (bossKey === 'beauregard') { beauAftermath(ups); return; }
     story.wins++;
     const msg = `VICTORY! +${xp} XP, +${gold} G${drops.length ? ', found ' + drops.join(', ') : ''}. (${playerStats.xp}/${xpNeed(playerStats.lv)} to LV ${playerStats.lv + 1})`;
-    const extra = (story.wins === 3 && learnArt('AMOR FATI')) ? [{ s: 'KAELEN', t: "Every fight, every bruise... I wouldn't trade any of it. It's what's making me." }, artPage('AMOR FATI')] : [];
+    const extra = (story.wins === 3 && learnArt('AMOR FATI')) ? [{ s: 'AMBROSE', t: "Every fight, every bruise... I wouldn't trade any of it. It's what's making me." }, artPage('AMOR FATI')] : [];
     if (ups.length || extra.length) playDialogue([{ s: 'VICTORY', t: msg }].concat(ups, extra));
     else showDialogue(msg);
 }
@@ -4851,7 +4851,7 @@ function updateFollowers(dt) {
     });
 }
 const ALLY_JOIN = {
-    lira: { ok: () => story.ch >= 1, pages: ["You know where to start? Mara's bar. Good. I'm coming.", "I can't bring him back, Kaelen. But I can make sure you come back."] },
+    lira: { ok: () => story.ch >= 1, pages: ["You know where to start? Mara's bar. Good. I'm coming.", "I can't bring him back, Ambrose. But I can make sure you come back."] },
     cassius: { ok: () => story.insights.fortitude, pages: ["The Lector gave you the Insight. Then you've learned more in one afternoon than I have in six years.", "Epictetus says some things are in our power. My spear is. It's yours."] },
     maren: { ok: () => story.ch >= 2, pages: ["So Anselm gave you the journal. Then you're walking into the crags, and you'll need a healer.", "Spinoza wrote that suffering ceases to be suffering once we understand it clearly. I'll handle the bleeding while you work on the understanding."] },
     nils: { ok: () => story.insights.abyss, pages: ["You went up the hill and came back down with your eyes clear. The old man must like you.", "My axe has carved ice for twenty winters. Let's see how it does on Raider steel."] }
@@ -4889,7 +4889,7 @@ function warlordAftermath() {
         { s: 'VANGUARD', t: "Your father's books made my soldiers ask WHY. A soldier who asks why cannot be commanded." },
         { s: 'VANGUARD', t: "Ashford. Seventeen years ago. The decree called it a pre-emptive strike against violent extremism. The truth? We burned it for hiding a printing press. After we left, a courier walked into the flames and came out carrying a baby." },
         { s: 'VANGUARD', t: "He named you. Raised you. Spent the rest of his life carrying books to undo what we did. I should have known he was raising my reckoning." },
-        { s: 'KAELEN', t: "...He was my father. Blood or not." }
+        { s: 'AMBROSE', t: "...He was my father. Blood or not." }
     ].concat(party.some(m => m.key === 'nils') ? [
         { s: 'NILS', t: "Ivar. Look at me. You can still take that armor off." },
         { s: 'VANGUARD', t: "...Nils? Little brother. You got old." }] : [], [
@@ -4897,11 +4897,11 @@ function warlordAftermath() {
     ]), () => showChoice('What do you do?', [
         { label: 'STRIKE HIM DOWN', fn: () => { story.ending = 'strike'; playDialogue([
             { s: 'SYSTEM', t: "Your blade falls. The reactor goes dark, and the Obsidian Gate falls silent." },
-            { s: 'KAELEN', t: "...It doesn't feel like I thought it would." },
+            { s: 'AMBROSE', t: "...It doesn't feel like I thought it would." },
             { s: 'QUEST', t: "Return to Elder Carl in Valkora." }], () => setChapter(4)); } },
         { label: 'SPARE HIM', fn: () => { story.ending = 'spare'; playDialogue([
-            { s: 'KAELEN', t: "'The best way of avenging thyself is not to become like the wrong doer.' My father underlined that." },
-            { s: 'KAELEN', t: "Take your machines and leave Aethelgard. And let the books through." },
+            { s: 'AMBROSE', t: "'The best way of avenging thyself is not to become like the wrong doer.' My father underlined that." },
+            { s: 'AMBROSE', t: "Take your machines and leave Aethelgard. And let the books through." },
             { s: 'SYSTEM', t: party.some(m => m.key === 'nils') ? "Nils helps his brother climb out of the war-machine. Ivar blinks at the stars like a man waking up. The Raiders withdraw over the northern sea." : "The Raiders withdraw over the northern sea. For the first time in years, the crags are quiet." },
             { s: 'QUEST', t: "Return to Elder Carl in Valkora." }], () => setChapter(4)); } }
     ]));
@@ -4955,7 +4955,7 @@ const SHOPS = {
     halcyon:   { name: 'HALCYON QUARTERMASTER', items: ['hipotion', 'ether', 'feather', 'fuel', 'elixir', 'smoke'], weaponIds: ['blades1', 'blades2', 'blades3', 'sword3', 'bow2', 'spear3', 'lamp3'], armors: ['arm4'] }
 };
 let shopOpen = null;
-const WHO = { sword: 'Kaelen', bow: 'Lira', spear: 'Cassius', lamp: 'Maren', axe: 'Nils', blades: 'Silver' };
+const WHO = { sword: 'Ambrose', bow: 'Lira', spear: 'Cassius', lamp: 'Maren', axe: 'Nils', blades: 'Silver' };
 function openShop(key) {
     shopOpen = key;
     $('shop-modal').style.display = 'flex';
@@ -4989,7 +4989,7 @@ function renderShop() {
         row(A.name, `Armor for anyone: DEF +${A.def}`, A.price, `x${OWNED.armors[id] || 0}`, () => {
             OWNED.armors[id] = (OWNED.armors[id] || 0) + 1;
             const weakest = roster().map(c => c.key).sort((a, b) => aDef(a) - aDef(b))[0];
-            if (A.def > aDef(weakest)) { EQUIP[weakest].armor = id; showDialogue(`${weakest === 'kaelen' ? 'Kaelen' : ALLY_DEFS[weakest].name} puts on the ${A.name}.`, 'SHOP'); }
+            if (A.def > aDef(weakest)) { EQUIP[weakest].armor = id; showDialogue(`${weakest === 'kaelen' ? 'Ambrose' : ALLY_DEFS[weakest].name} puts on the ${A.name}.`, 'SHOP'); }
         });
     });
 }
@@ -5023,9 +5023,9 @@ function renderInventory() {
                 else row('art-row locked', `<b>??? ???</b> <span class="seq">${a.seq.map(() => '?').join('-')}</span><br><span style="color:#889;">${a.lv ? 'Unlocks at party LV ' + a.lv : 'Learn from: ' + a.src}</span>`);
             });
         };
-        show('KAELEN', ARTS);
+        show('AMBROSE', ARTS);
         party.forEach(m => show(m.def.name.toUpperCase() + (m.active ? '' : ' (reserve)'), ALLY_ARTS[m.key]));
-        Object.keys(GEAR_STATE).filter(k => k === 'kaelen' ? !story.fallen : party.some(m => m.key === k)).forEach(k => { show(`GEAR ${GEARS[k].name} (${k === 'kaelen' ? 'Kaelen' : ALLY_DEFS[k].name})`, GEAR_ARTS_BY[k] || GEAR_ARTS); if (GEAR_PASSIVE[k]) row('art-row', `<span style="color:#ffd24a;">PASSIVE: ${GEAR_PASSIVE[k].name}</span> <span style="color:#aab;">${GEAR_PASSIVE[k].text}</span>`); });
+        Object.keys(GEAR_STATE).filter(k => k === 'kaelen' ? !story.fallen : party.some(m => m.key === k)).forEach(k => { show(`GEAR ${GEARS[k].name} (${k === 'kaelen' ? 'Ambrose' : ALLY_DEFS[k].name})`, GEAR_ARTS_BY[k] || GEAR_ARTS); if (GEAR_PASSIVE[k]) row('art-row', `<span style="color:#ffd24a;">PASSIVE: ${GEAR_PASSIVE[k].name}</span> <span style="color:#aab;">${GEAR_PASSIVE[k].text}</span>`); });
     } else if (invTab === 'quests') { renderQuestsTab(row);
     } else if (invTab === 'party') { renderPartyTab(row);
     } else if (invTab === 'equip') {
@@ -5070,7 +5070,7 @@ const QUEST_INFO = {
     corin: { name: "The Deserter's Trail (Lira alone)", where: 'Whisperpine Trailhead, north snowfields', text: q => q.state === 'done' ? 'Lira found word of her brother Corin.' : `Play as Lira and follow Corin's carved marks (${q.marks.filter(Boolean).length}/3), then search his camp.` },
     ashes: { name: 'Ashes of the Stoa (Cassius & Maren)', where: 'Ashen Library Gate, east desert', text: q => q.state === 'done' ? 'The surviving scrolls are safe.' : `Play as Cassius and Maren. Save the scrolls (${q.scrolls}/4) and defeat the Torchbearer${q.boss ? ' [X]' : ''}.` },
     brothers: { name: 'Brothers in Ice (Nils alone)', where: 'Glacier Caves, north-east', text: q => q.state === 'done' ? "Nils carries Ivar's hammer." : 'Play as Nils. Defeat the Ice Colossus and recover Ivar\'s old smith hammer.' },
-    blackout: { name: 'Station Blackout (Kaelen & Silver)', where: 'Chief Avery, Halcyon Orb', text: q => q.state === 'done' ? 'The Orb is powered, and Silver came down to the world.' : `Restart the three lower-deck generators with Silver (${q.gens}/3).` }
+    blackout: { name: 'Station Blackout (Ambrose & Silver)', where: 'Chief Avery, Halcyon Orb', text: q => q.state === 'done' ? 'The Orb is powered, and Silver came down to the world.' : `Restart the three lower-deck generators with Silver (${q.gens}/3).` }
 };
 function questAvailable(k) {
     const has = a => party.some(m => m.key === a);
@@ -5131,7 +5131,7 @@ function questTalk(n) {
             if (q.state === 'new') {
                 q.state = 'active';
                 return { pages: [pg(n.lines[0]), pg(n.lines[1]), pg("Silver volunteered to go down there. Of course she did. Go with her, groundsider: two of you, no more. The deck corridors are tight."),
-                    { s: 'QUEST', t: 'New side quest: STATION BLACKOUT. Take the hatch to the lower decks. You will play as Kaelen and Silver only.' }],
+                    { s: 'QUEST', t: 'New side quest: STATION BLACKOUT. Take the hatch to the lower decks. You will play as Ambrose and Silver only.' }],
                     done: () => { const sn = npcList.find(x => x.ally === 'silver'); if (sn && !sn.joined) { const m = joinAlly(sn); m.active = false; m.guest = true; resetTrail(); } } };
             }
             if (q.state === 'active') return { pages: [pg(`Generators online: ${q.gens}/3. The hatch is by the market.`)] };
@@ -5469,10 +5469,10 @@ function leaveZoneNow(target) {
     autoSave();
 }
 function leaveZone() { fadeThen(() => leaveZoneNow()); }
-const SOLO = { hollow: { quest: 'corin', keys: ['lira'], who: 'Lira' }, ashen: { quest: 'ashes', keys: ['cassius', 'maren'], who: 'Cassius and Maren' }, glacier: { quest: 'brothers', keys: ['nils'], who: 'Nils' }, decks: { quest: 'blackout', keys: ['kaelen', 'silver'], who: 'Kaelen and Silver' } };
+const SOLO = { hollow: { quest: 'corin', keys: ['lira'], who: 'Lira' }, ashen: { quest: 'ashes', keys: ['cassius', 'maren'], who: 'Cassius and Maren' }, glacier: { quest: 'brothers', keys: ['nils'], who: 'Nils' }, decks: { quest: 'blackout', keys: ['kaelen', 'silver'], who: 'Ambrose and Silver' } };
 const SOLO_INTRO = {
-    corin: [{ s: 'LIRA', t: "Corin's trail. I'd know his carving anywhere. He used to mark our hunting paths with a little arrow." }, { s: 'LIRA', t: "Let me go alone, Kaelen. If he's in there, I don't want him to see an army. I want him to see his sister." }],
-    ashes: [{ s: 'CASSIUS', t: 'The Stoa library. Where I dropped Vanguard\'s shield. Raiders are back, looting what didn\'t burn.' }, { s: 'SISTER MAREN', t: "Then we save what we can. Just the two of us, Kaelen. This one's ours to set right." }],
+    corin: [{ s: 'LIRA', t: "Corin's trail. I'd know his carving anywhere. He used to mark our hunting paths with a little arrow." }, { s: 'LIRA', t: "Let me go alone, Ambrose. If he's in there, I don't want him to see an army. I want him to see his sister." }],
+    ashes: [{ s: 'CASSIUS', t: 'The Stoa library. Where I dropped Vanguard\'s shield. Raiders are back, looting what didn\'t burn.' }, { s: 'SISTER MAREN', t: "Then we save what we can. Just the two of us, Ambrose. This one's ours to set right." }],
     brothers: [{ s: 'NILS', t: "Ivar and I played in these caves as boys. His old forge hammer is still down there. Something big moved in." }, { s: 'NILS', t: "Let me walk it alone. Some places you have to visit by yourself." }],
     blackout: [{ s: 'SILVER', t: "Just you and me, groundsider. Stay close, the drones go for whoever's loudest." }]
 };
@@ -5598,7 +5598,7 @@ async function blackoutFinale() {
     csDefeat(d2);
     csShot(csMid(hero, S.actor).x, csMid(hero, S.actor).z, { dist: 5, h: 2, yaw: 0.2, snap: true });
     await csSay('SILVER', "Ha! You fight like someone who grew up with real gravity. Clumsy. I like it.");
-    await csSay('KAELEN', "Then come down and teach me.", 2200);
+    await csSay('AMBROSE', "Then come down and teach me.", 2200);
     await csSay('SILVER', "Try and stop me.", 2000);
     csEnd({ x: hero.mesh.position.x, z: hero.mesh.position.z });
     Q.blackout.state = 'done'; Q.starbound.state = 'done';
@@ -5711,8 +5711,8 @@ function renderQuestsTab(row) {
     });
 }
 function renderPartyTab(row) {
-    row('art-row', `<span style="color:#9ab;">Up to 4 travel and fight together: Kaelen plus 3 allies. Tap to move someone between ACTIVE and RESERVE.</span>`);
-    row('eq-row', `<span><b style="color:var(--gold);">KAELEN</b> &middot; leader</span><span style="color:#7dffb4;">ACTIVE</span>`);
+    row('art-row', `<span style="color:#9ab;">Up to 4 travel and fight together: Ambrose plus 3 allies. Tap to move someone between ACTIVE and RESERVE.</span>`);
+    row('eq-row', `<span><b style="color:var(--gold);">AMBROSE</b> &middot; leader</span><span style="color:#7dffb4;">ACTIVE</span>`);
     party.forEach(m => {
         const d = row('eq-row', `<span><b style="color:#00ffcc;">${m.def.name.toUpperCase()}</b> &middot; HP ${m.st.hp}/${m.st.maxHp} &middot; gear ${GEARS[m.key].name}</span>`);
         const b = document.createElement('button'); b.className = 'use-btn'; b.innerText = m.active ? 'ACTIVE' : 'RESERVE';
@@ -6219,7 +6219,7 @@ async function runOpening() {
     await csSay('', 'A cold night. Most of Valkora is asleep.', 2600);
     await walk1;
     csShotA(aldric, { dist: 4.6, h: 2.0, look: 2.0, fov: 38, yaw: 0.25 });              // close on Aldric
-    await csSay('ALDRIC', "Home at last. Kaelen won't believe what I carried out of the desert this time...");
+    await csSay('ALDRIC', "Home at last. Ambrose won't believe what I carried out of the desert this time...");
     const walk2 = csWalk(aldric, 6.5, -4, 3.2);
     csShot(9, 1, { dist: 8, h: 2.8, yaw: -0.3, rate: 0.9 });
     await walk2; aldric.dir = 'left';
@@ -6236,11 +6236,11 @@ async function runOpening() {
     await Promise.all([csWalk(r0, 6.2, -5.2, 5), csWalk(r1, 7.8, -4.0, 5)]);
     r0.dir = 'down'; r1.dir = 'left';
 
-    // Kaelen bursts out of the house and fights
+    // Ambrose bursts out of the house and fights
     hero.mesh.visible = true; hero.blob.visible = true; hero.dir = 'down';
     csShot(1.5, -11, { dist: 5.5, h: 2.2, yaw: 0.45, fov: 40, snap: true });
     await csWalk(hero, 1.6, -9.6, 7);
-    await csSay('KAELEN', "DAD! Get away from him!", 1800);
+    await csSay('AMBROSE', "DAD! Get away from him!", 1800);
     csShot(4.5, -6.8, { dist: 9.5, h: 3.4, yaw: -0.15, snap: true });
     await csWalk(r0, 4.2, -8.4, 6); r0.dir = 'left';
     await csStrike(hero, r0, { knock: 2.4, color: 0x00e5ff, shake: 0.6 });
@@ -6265,8 +6265,8 @@ async function runOpening() {
     aldric.lockDir = false;
     csRise(hero);
     const hw = csWalk(hero, 1.4, 11.2, 3.2);
-    csShot(-2.4, 6.6, { dist: 9.5, h: 2.6, yaw: 0.32, rate: 1.0 });                   // over Kaelen's shoulder
-    await Promise.all([hw, csSay('KAELEN', "...Dad...", 1800)]);
+    csShot(-2.4, 6.6, { dist: 9.5, h: 2.6, yaw: 0.32, rate: 1.0 });                   // over Ambrose's shoulder
+    await Promise.all([hw, csSay('AMBROSE', "...Dad...", 1800)]);
     hero.dir = 'up';
 
     // the slaying
@@ -6277,7 +6277,7 @@ async function runOpening() {
     await csSay('ALDRIC', "South. Past anywhere you can burn them.");
     aldric.dir = 'right';
     csShotA(aldric, { dist: 3.2, h: 1.2, look: 1.3, fov: 32, yaw: 0.35, rate: 0.5 });  // slow push-in
-    await csSay('ALDRIC', "Kaelen... listen to me. Don't let anger do your thinking for you.", 3800);
+    await csSay('ALDRIC', "Ambrose... listen to me. Don't let anger do your thinking for you.", 3800);
     csShot(-2.2, 6.6, { dist: 7, h: 2.2, yaw: 0.3, snap: true });
     await csSay('BEAUREGARD', "This is what happens to people who think they're above answering our questions.", 3200);
     csPose(beau, beau.atkL, 650);
@@ -6287,9 +6287,9 @@ async function runOpening() {
     await csWait(450);
     csFall(aldric, -1);
     csShotA(hero, { dist: 3.6, h: 1.5, look: 1.8, fov: 36, snap: true });
-    await csSay('KAELEN', "NOOOO!", 1500);
+    await csSay('AMBROSE', "NOOOO!", 1500);
 
-    // Kaelen's rage charge, and Beauregard swats him aside
+    // Ambrose's rage charge, and Beauregard swats him aside
     csShot(csMid(hero, beau).x, csMid(hero, beau).z, { dist: 8.5, h: 3, snap: true });
     await csClash(hero, beau);
     await csStrike(beau, hero, { knock: 2.4, big: true, color: 0xff4a4a, shake: 1 });
@@ -6307,7 +6307,7 @@ async function runOpening() {
     await csSay('ALDRIC', "Take... the lighter. Mara... at the Neon Aegis... she'll know...", 3600);
     await csSay('', 'Aldric presses his silver lighter into your hand. Then he is still.', 3200);
     csShot(-2.6, 6.2, { dist: 26, h: 20, look: 0, rate: 0.35 });                        // slow crane pull-back
-    await csSay('KAELEN', "I'll find them, Dad. I swear it.", 3200);
+    await csSay('AMBROSE', "I'll find them, Dad. I swear it.", 3200);
     await csTitle('THREE NIGHTS LATER', 2400);
     csEnd({ x: 2, z: 2 });
     setVillagersVisible(true);
@@ -6337,15 +6337,15 @@ async function cribScene() {
     csShotA(al, { dist: 3.2, h: 1.6, look: 1.9, fov: 34 });
     await csSay('', 'Aldric lifts the baby out of the crib and holds him close.', 2600);
     await csSay('ALDRIC', "You'll need a name, won't you...", 2600);
-    await csSay('ALDRIC', "Kaelen. Your name is Kaelen.", 2800);
+    await csSay('ALDRIC', "Ambrose. Your name is Ambrose.", 2800);
     csShotA(al, { dist: 2.5, h: 1.8, look: 2.0, fov: 30, rate: 0.5 });
     await csSay('ALDRIC', "I'll be taking care of you from now on. I swear you will want for nothing.", 4400);
     csShotA(al, { dist: 9, h: 5.5, look: 1.2, rate: 0.5 });
     await csWait(1600);
     await csTitle('', 700);
     csEnd(back);
-    playDialogue([{ s: 'KAELEN', t: "...Dad. You kept that promise. Every single day." },
-        { s: 'KAELEN', t: "'The fire's out now'... What fire? Where did you find me?" }]);
+    playDialogue([{ s: 'AMBROSE', t: "...Dad. You kept that promise. Every single day." },
+        { s: 'AMBROSE', t: "'The fire's out now'... What fire? Where did you find me?" }]);
 }
 
 // ---------- RECRUITMENT: each ally joins in the middle of a fight ----------
@@ -6367,7 +6367,7 @@ const RECRUIT_FIGHTS = {
     async lira(A, g0, g1, X, Z) {
         csShot(X - 1.2, Z + 1, { dist: 6.5, h: 2.6, yaw: -0.2, snap: true });
         await csSay('LIRA', "Mara's sending you north? Then you're not going alone.");
-        await csSay('KAELEN', "Lira, this isn't your fight.");
+        await csSay('AMBROSE', "Lira, this isn't your fight.");
         A.dir = 'right';
         await csSay('LIRA', "It's been my fight for two years. ...Get down!", 2200);
         csShot(X + 3, Z - 1, { dist: 10, h: 4, yaw: 0.25, snap: true });
@@ -6509,7 +6509,7 @@ function hangarGear(key) {
     return HANGAR.gears[key];
 }
 const HANGAR_LINES = {
-    kaelen:  { pre: [['MARA', "Your father rebuilt it down here, one scavenged bolt at a time. Go on. Say hello."]], awe: "It's... enormous. Dad, you built a giant.", line: ['KAELEN', "AEGIS. Let's finish what you started."] },
+    kaelen:  { pre: [['MARA', "Your father rebuilt it down here, one scavenged bolt at a time. Go on. Say hello."]], awe: "It's... enormous. Dad, you built a giant.", line: ['AMBROSE', "AEGIS. Let's finish what you started."] },
     lira:    { pre: [['LIRA', "Before we head out, there's something I've kept under a tarp since Corin left."]], awe: "That's yours?! It looks like it could fly.", line: ['LIRA', "It's time to put this thing to good use."] },
     cassius: { pre: [['CASSIUS', "The Stoa's armory survived the fire. One thing in it survived better than the rest."]], awe: "It's a walking fortress.", line: ['CASSIUS', "This battle calls for me pulling out the big guns."] },
     maren:   { pre: [['SISTER MAREN', "My mother kept a machine for carrying the wounded out of burning towns. I kept it running."]], awe: "It's glowing. Is that... a flame in there?", line: ['SISTER MAREN', "A light this bright was made to lead people home. Let's go."] },
@@ -6598,7 +6598,7 @@ async function beauregardScene() {
     await csSay('BEAUREGARD', "Vanguard said you'd come knocking. He asked me to answer the door.");
     await csSay('BEAUREGARD', "Let's keep this friendly. It would be ill-advised to go against us, whelp.");
     csShotA(hero, { dist: 4.2, h: 1.7, look: 1.9, fov: 38, yaw: 0.3, snap: true });
-    await csSay('KAELEN', "Beauregard. You killed my father.", 2400);
+    await csSay('AMBROSE', "Beauregard. You killed my father.", 2400);
     const L = allyActor('lira'), C = allyActor('cassius'), M = allyActor('maren'), N = allyActor('nils');
     if (M) { csShotA(M, { dist: 4, h: 1.6, look: 2, fov: 38, snap: true }); await csSay('SISTER MAREN', "And my mother. Remember the healer you sewed up, Beauregard?"); }
     if (C) { csShotA(C, { dist: 4, h: 1.6, look: 2, fov: 38, snap: true }); await csSay('CASSIUS', "Hello, Beau. Still lighting libraries?"); }
@@ -6643,7 +6643,7 @@ function beauAftermath(ups) {
     if (has('cassius')) pages.push({ s: 'CASSIUS', t: "You lit the Stoa library, Beau. I carried the shield that stood in front of you while you did it." },
         { s: 'BEAUREGARD', t: "And then you ran. We both made our choices, shield-bearer." });
     pages.push({ s: 'BEAUREGARD', t: "Vanguard's waiting behind the Gate. He'll want to look at Aldric's foundling with his own eyes." },
-        { s: 'KAELEN', t: "...Foundling?" },
+        { s: 'AMBROSE', t: "...Foundling?" },
         { s: 'BEAUREGARD', t: "Ask him about Ashford." },
         { s: 'SYSTEM', t: "Beauregard limps off into the crags. Nobody stops him. The way to the Obsidian Gate is open." });
     playDialogue(pages, () => setObjective());
@@ -6672,7 +6672,7 @@ async function vanguardScene() {
     csShotA(van, { dist: 7.5, h: 0.6, look: 5, fov: 42, snap: true });
     await csSay('VANGUARD', "So. Aldric's foundling. You have his stubborn jaw. Odd, since you share no blood.");
     csShotA(hero, { dist: 4.2, h: 1.7, look: 1.9, fov: 38, yaw: 0.3, snap: true });
-    await csSay('KAELEN', "Beauregard told me to ask you about Ashford.");
+    await csSay('AMBROSE', "Beauregard told me to ask you about Ashford.");
     csShotA(van, { dist: 7.5, h: 0.6, look: 5, fov: 42, snap: true });
     await csSay('VANGUARD', "Later. If you live.", 2000);
     const N = allyActor('nils');
@@ -6693,7 +6693,7 @@ async function vanguardScene() {
     party.forEach((m, i) => { csKnock(m.actor, slots[i][0] * 0.5, 1.4); csPose(m.actor, m.actor.hurtR, 500); });
     await csWait(700);
     csShotA(hero, { dist: 4.2, h: 1.4, look: 1.9, fov: 38, yaw: -0.3, snap: true });
-    await csSay('KAELEN', "Everyone, up! Together!", 2000);
+    await csSay('AMBROSE', "Everyone, up! Together!", 2000);
     csShot(X, Z - 2.5, { dist: 9, h: 2.8, yaw: 0.2, snap: true });
     await csClash(hero, van);
     const L = allyActor('lira'), C = allyActor('cassius');
@@ -6999,7 +6999,7 @@ document.addEventListener('copy', e => e.preventDefault());
 
 ALLY_STORY.silver = ["I was born on the Halcyon Orb. My mother too, and hers. Eleven kilometers around: you can walk the whole world before lunch.",
     "Every night I watched your planet turn below us. Storms the size of my whole home. Oceans! I've never even seen a puddle.",
-    "Grandmother says the people who built the Orb came from down there. I want to walk where they walked. Show me your world, Kaelen."];
+    "Grandmother says the people who built the Orb came from down there. I want to walk where they walked. Show me your world, Ambrose."];
 
 // Start Story Engine
 refreshStats();
@@ -7561,7 +7561,7 @@ async function silverCampfire() {
     close(res1); await csSay('STATION RESIDENT', "My mouth is full of a cloud and I've never been happier.", 2400);
     const pal = party.find(m => m.key === 'lira') || party.find(m => m.key === 'cassius') || party.find(m => m.key === 'maren');
     if (pal) { close(pal.actor); await csSay(SP(pal.key), { lira: "You should see her toast them. She burns every single one on purpose.", cassius: "Seneca never wrote about chocolate. I think that was his greatest mistake.", maren: "Medically speaking, I recommend a second one." }[pal.key]); }
-    close(hero); await csSay(story.fallen ? SP(leaderKey()) : 'KAELEN', "Wait until she finds out about pie.", 2000);
+    close(hero); await csSay(story.fallen ? SP(leaderKey()) : 'AMBROSE', "Wait until she finds out about pie.", 2000);
     close(silver.actor);
     await csSay('SILVER', "I grew up looking down at that world and wondering what it felt like. Now I get to bring a little of it home.");
     csShot(C.x, C.z, { dist: 20, h: 9, look: 1, yaw: 0.6, rate: 0.35, snap: true });
@@ -7575,7 +7575,7 @@ async function silverCampfire() {
 // ==========================================
 // 14b. THE THIRD FLIGHT: the rocket disaster, the heirs, and the Ash Path
 // ==========================================
-const SP = k => k === 'maren' ? 'SISTER MAREN' : k === 'kaelen' ? 'KAELEN' : (ALLY_DEFS[k] ? ALLY_DEFS[k].name.toUpperCase() : k.toUpperCase());
+const SP = k => k === 'maren' ? 'SISTER MAREN' : k === 'kaelen' ? 'AMBROSE' : (ALLY_DEFS[k] ? ALLY_DEFS[k].name.toUpperCase() : k.toUpperCase());
 const shadeHex = (h, f) => { const n = parseInt(h.slice(1), 16), c = s => Math.max(0, Math.min(255, Math.round(((n >> s) & 255) * f))); return '#' + [16, 8, 0].map(s => c(s).toString(16).padStart(2, '0')).join(''); };
 const lookOf = o => { const L = Object.assign({}, o); ['hair', 'top', 'robe', 'pants'].forEach(k => { if (L[k]) { L[k + 'D'] = L[k + 'D'] || shadeHex(L[k], 0.72); if (k !== 'pants' && k !== 'robe') L[k + 'L'] = L[k + 'L'] || shadeHex(L[k], 1.3); } }); return Object.assign({}, D0, L); };
 
@@ -7647,7 +7647,7 @@ const DEFENDERS = {
         fall: "It's not God I don't accept... it's the world. You've only proven my point." },
     alyosha: { name: 'ALYOSHA KARAMAZOV', from: 'The Brothers Karamazov (1880)', trait: 'regen', hp: 8600, D: lookOf({ hair: '#8a5a2a', hairStyle: 'short', robe: '#2a2a30', top: '#2a2a30', collar: '#1a1a20', belt: '#5a3a1e', skin: '#f1cfae', skinD: '#d8ac86' }),
         pre: "Love life more than the meaning of it. Put down the torch, and I will still call you brother.", pre2: "...You won't. Then I'll stand in front of the library. Someone must.",
-        fall: "Remember how good it was, once, when we were all together... Remember Kaelen like that." },
+        fall: "Remember how good it was, once, when we were all together... Remember Ambrose like that." },
     raskolnikov: { name: 'RODION RASKOLNIKOV', from: 'Crime and Punishment (1866)', trait: 'charge', hp: 9500, D: lookOf({ hair: '#2b1d14', hairStyle: 'short', top: '#5a4a3a', pants: '#2a2a30', collar: '#3a3a44', blade: '#9a9aa6', bladeL: '#d8dce8', hilt: '#6b4a2a' }),
         pre: "I killed once, to prove I had the right. Was I a trembling creature, or had I the right? I can tell you the answer.", pre2: "You'll ask yourself the same question every night. Let me spare you. Go home.",
         fall: "This... this is only the beginning of your punishment. Not mine. Not anymore." }
@@ -7722,7 +7722,7 @@ const VAN_BURN = {
 
 // ---------- the disaster ----------
 const GRIEF = {
-    lira: "Kaelen... no. NO. Corin walked away from me, and now you too?",
+    lira: "Ambrose... no. NO. Corin walked away from me, and now you too?",
     cassius: "Marcus Aurelius says loss is nothing but change. Marcus Aurelius never watched a rocket burn.",
     maren: "I've stitched a hundred wounds. There's nothing... there's nothing left to stitch.",
     nils: "Twenty winters of ice, and I have never been this cold.",
@@ -7744,7 +7744,7 @@ async function rocketDisaster() {
     await csSay('PROFESSOR ORRIN', "Flight number three! The old girl has never flown better. Strap in, everyone.", 2600);
     if (reserves.length) await csSay(SP(reserves[0].key), reserves.length > 1 ? "We'll hold the fort down here. Bring us back a piece of the sky." : "I'll keep watch down here. Bring me back a piece of the sky.", 2600);
     if (F.some(m => m.key === 'silver') && story.silverPromise) await csSay('SILVER', "One more time. I'm going to tell them EVERYTHING.", 2400);
-    await csSay('KAELEN', "Back before supper. Promise.", 2000);
+    await csSay('AMBROSE', "Back before supper. Promise.", 2000);
     await Promise.all([csWalk(hero, R.x, R.z + 3, 3)].concat(F.map(m => csWalk(m.actor, R.x, R.z + 3, 3))));
     hero.mesh.visible = false; hero.blob.visible = false; F.forEach(m => { m.actor.mesh.visible = false; m.actor.blob.visible = false; });
     csShot(R.x, R.z, { dist: 26, h: 1.2, look: 12, fov: 46, snap: true });
@@ -7767,7 +7767,7 @@ async function rocketDisaster() {
     await csWait(1800);
     await csSay('', '...', 1400);
     if (debris) clearInterval(debris);
-    const crew = ['Kaelen'].concat(F.map(m => m.def.name));
+    const crew = ['Ambrose'].concat(F.map(m => m.def.name));
     if (!reserves.length) {
         await csTitle('NO ONE WAS LEFT ON THE GROUND', 2800);
         csEnd({ x: R.x, z: R.z + 16 });
@@ -7791,7 +7791,7 @@ async function rocketDisaster() {
     const turn = story.heirs.find(k => k === 'nils') || story.heirs.find(k => k === 'cassius'), canTurn = !!turn && story.ending !== 'strike';
     playDialogue([{ s: 'SYSTEM', t: `The rocket is gone, and with it ${crew.join(', ')}. The story now belongs to ${names}.` }].concat(canTurn ? TURN_LINES[turn] : []),
         () => canTurn ? showChoice('The smoke drifts north, toward the Obsidian Gate.', [
-            { label: 'FIGHT ON FOR KAELEN', fn: () => { story.path = 'fight'; playDialogue([{ s: SP(turn), t: "...No. Kaelen would never forgive me. Vanguard answers for this, one way or another." }, { s: 'QUEST', t: 'Carry on what Kaelen started.' }], () => { setObjective(); autoSave(); }); } },
+            { label: 'FIGHT ON FOR AMBROSE', fn: () => { story.path = 'fight'; playDialogue([{ s: SP(turn), t: "...No. Ambrose would never forgive me. Vanguard answers for this, one way or another." }, { s: 'QUEST', t: 'Carry on what Ambrose started.' }], () => { setObjective(); autoSave(); }); } },
             { label: 'REACH OUT TO VANGUARD', fn: () => darkPact(turn) }
         ]) : (setObjective(), autoSave()));
 }
@@ -7826,7 +7826,7 @@ async function darkPact(turn) {
     csShotA(van, { dist: 9, h: 1, look: 5, fov: 48, snap: true });
     await csSay('VANGUARD', turn === 'nils' ? "Little brother. I wondered how long grief would take to walk you here." : "Shieldbearer. I wondered how long grief would take to walk you here.");
     csShotA(hero, { dist: 4.2, h: 1.6, look: 2, fov: 38, yaw: Math.PI - 0.4, snap: true });
-    await csSay(P, "Kaelen is dead. The rocket...");
+    await csSay(P, "Ambrose is dead. The rocket...");
     csShotA(van, { dist: 7, h: 0.8, look: 5, fov: 44, snap: true });
     await csSay('VANGUARD', "...burned on its third flight. Yes. I know. I planned it.");
     await csWalk(beau, X + 4, Z - 3, 5);
@@ -7914,7 +7914,7 @@ async function ashEnding() {
     csEnd({ x: X, z: Z });
     story.ending = 'ash';
     setObjective(); autoSave();
-    playDialogue([{ s: 'THE END', t: "You walked the Ash Path to its end. The island is quiet. Whether it is at peace is another question. You can keep exploring, or start a New Game to walk with Kaelen again." }]);
+    playDialogue([{ s: 'THE END', t: "You walked the Ash Path to its end. The island is quiet. Whether it is at peace is another question. You can keep exploring, or start a New Game to walk with Ambrose again." }]);
 }
 async function heirsVanguardFight() {
     const me = SP(leaderKey());
@@ -7922,7 +7922,7 @@ async function heirsVanguardFight() {
         { s: 'VANGUARD', t: "So the boy's friends come in his place. I heard about the rocket. Such a fragile thing, a rocket." },
         { s: me, t: "You did it. Didn't you." },
         { s: 'VANGUARD', t: "Third flight. One loose valve. The official report says 'navigation anomaly.' Beauregard is very patient." },
-        { s: me, t: "Then this ends now. For Kaelen." }
+        { s: me, t: "Then this ends now. For Ambrose." }
     ], () => startCombat('warlord', 'crags'));
 }
 function heirsAftermath() {
@@ -7932,11 +7932,11 @@ function heirsAftermath() {
     const me = SP(leaderKey()), nils = party.some(m => m.key === 'nils');
     playDialogue([
         { s: 'VANGUARD', t: "Enough... The boy would have spared me, you know. He was raised by a man who carried books into fire." },
-        { s: me, t: "Kaelen isn't here. That's the whole problem." }
+        { s: me, t: "Ambrose isn't here. That's the whole problem." }
     ].concat(nils ? [{ s: 'NILS', t: "Ivar. Look at me. You can still take that armor off." }, { s: 'VANGUARD', t: "...Nils. Little brother. You got old." }] : []),
-    () => showChoice('What would Kaelen do?', [
+    () => showChoice('What would Ambrose do?', [
         { label: 'STRIKE HIM DOWN', fn: () => { story.ending = 'strike'; playDialogue([{ s: 'SYSTEM', t: "The reactor goes dark. The Obsidian Gate falls silent." }, { s: me, t: "...It doesn't bring him back." }], () => { setChapter(4); autoSave(); }); } },
-        { label: 'SPARE HIM', fn: () => { story.ending = 'spare'; playDialogue([{ s: me, t: "'The best way of avenging thyself is not to become like the wrong doer.' Kaelen's father underlined that. Kaelen did too." }, { s: 'SYSTEM', t: "The Raiders withdraw over the northern sea. Somewhere, a rocket's worth of grief finally has somewhere to go." }], () => { setChapter(4); autoSave(); }); } }
+        { label: 'SPARE HIM', fn: () => { story.ending = 'spare'; playDialogue([{ s: me, t: "'The best way of avenging thyself is not to become like the wrong doer.' Ambrose's father underlined that. Ambrose did too." }, { s: 'SYSTEM', t: "The Raiders withdraw over the northern sea. Somewhere, a rocket's worth of grief finally has somewhere to go." }], () => { setChapter(4); autoSave(); }); } }
     ]));
 }
 function setObjective() {
@@ -7945,7 +7945,7 @@ function setObjective() {
         const left = TOWNS.filter(T => !(story.burned || {})[T.k]);
         t = story.ending === 'ash' ? 'THE ASH ENDING. The island is yours to wander.' :
             `THE ASH PATH: burn the towns that hid Aldric's books (${7 - left.length}/7). ${left.length > 1 ? 'Next: ' + left.filter(T => T.k !== 'valkora').map(T => T.name).join(', ') + '.' : 'Last: VALKORA.'}${party.some(m => m.key === 'beauregard') ? '' : ' Beauregard waits on the crag road near the Gate.'}`;
-    } else if (story.fallen && !story.warlordDown) t = story.ch >= 3 ? 'For Kaelen: face Vanguard at the Obsidian Gate.' : 'For Kaelen: ' + objectiveText();
+    } else if (story.fallen && !story.warlordDown) t = story.ch >= 3 ? 'For Ambrose: face Vanguard at the Obsidian Gate.' : 'For Ambrose: ' + objectiveText();
     else t = objectiveText();
     $('objective').innerText = 'OBJECTIVE: ' + t;
 }
@@ -8177,7 +8177,7 @@ function startNewGame() {
     runOpening().then(() => playDialogue([
         { s: 'AETHELGARD', t: "AETHELGARD: THE SEARCH FOR MEANING" },
         { s: 'SYSTEM', t: "You buried your father beside the well. All the robbers left behind was his Silver Lighter, stamped: NEON AEGIS BAR." },
-        { s: 'KAELEN', t: "Whoever did this... I'll find them. And I'll make them pay." },
+        { s: 'AMBROSE', t: "Whoever did this... I'll find them. And I'll make them pay." },
         { s: 'SYSTEM', t: "WASD / arrows to move. E or SPACE to talk, read and open doors (look for the lamp above a door). I opens the menu, where you can also SAVE and change SETTINGS. The game autosaves when you leave buildings and win battles." }
     ], () => autoSave()));
 }
@@ -8185,4 +8185,4 @@ applySettings();
 showTitle();
 </script>
 </body>
-</html
+</html>
