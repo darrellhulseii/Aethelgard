@@ -3916,6 +3916,7 @@ function makeGearActor(key, size, shadowR) {
     rig.root.scale.set(s, s, s); rig.root.position.y = -(size / 2 - size * 0.045); outer.add(rig.root);
     rig.baseY = rig.root.position.y;
     outer.material = { map: null, opacity: 1, color: new THREE.Color(0xffffff) };    // sprite-API shim for shared actor code
+    outer.userData.actor = true;
     scene.add(outer);
     const blob = new THREE.Mesh(new THREE.CircleGeometry(shadowR, 18), blobMat); blob.rotation.x = -Math.PI / 2; scene.add(blob);
     const T = gearTex(key);
@@ -4241,22 +4242,113 @@ function applyArtFx(art, total, u, f) {
 }
 
 // ---------- per-hit animation for any party unit ----------
+// Every weapon (and every gear) swings its own way. Light = cut from one side, Medium = cut from the other side,
+// Heavy = a blow straight down the middle, Psyche = a direct stab/thrust. Colours and flourishes depend on the weapon.
+const STRIKE_STYLE = {
+    // on foot: weapon type -> look
+    sword:  { c1: 0x9ff6ff, c2: 0xffffff, kind: 'blade' },
+    bow:    { c1: 0x7dffb4, c2: 0xeaffd0, kind: 'arrow' },
+    spear:  { c1: 0xffd27a, c2: 0xffb84d, kind: 'pole' },
+    lamp:   { c1: 0xffa040, c2: 0xfff6c8, kind: 'flame' },
+    axe:    { c1: 0xcff2ff, c2: 0x9fe8ff, kind: 'ice' },
+    blades: { c1: 0xc99bff, c2: 0xe0c8ff, kind: 'twin' },
+    cannon: { c1: 0xff4a2e, c2: 0xff8a30, kind: 'blunt' },
+    saber:  { c1: 0xff3b30, c2: 0xffb0a8, kind: 'rapier' }
+};
+const GEAR_STRIKE = {      // in a gear: each machine has its own weapon
+    kaelen:     { c1: 0x00e5ff, c2: 0xf6c945, kind: 'blade' },     // AEGIS broadsword + shield
+    lira:       { c1: 0xc9ff7a, c2: 0x7cc08a, kind: 'claw' },      // WREN talons
+    cassius:    { c1: 0xffb84d, c2: 0xe0a060, kind: 'pole' },      // PHALANX lance
+    maren:      { c1: 0x7dffb4, c2: 0xfff6c8, kind: 'flame' },     // LANTERN arm
+    nils:       { c1: 0x9fe8ff, c2: 0xffffff, kind: 'ice' },       // GLACIER icicle shoulders
+    silver:     { c1: 0xc99bff, c2: 0x9fd2ff, kind: 'twin' },      // COMET orbit ring
+    vanguard:   { c1: 0xff4a2e, c2: 0xffd27a, kind: 'blunt' },     // OBSIDIAN reactor-cannon arm
+    beauregard: { c1: 0xff3b30, c2: 0xffffff, kind: 'rapier' }     // SCARLET duelist blades
+};
+const strikeStyle = u => (u.mech ? GEAR_STRIKE[u.key] : STRIKE_STYLE[(CHAR_BASE[u.key] || {}).wtype || 'sword']) || STRIKE_STYLE.sword;
+// a slash drawn at a fixed angle (rot) and optionally mirrored, so cuts read as left / right / straight down
+function dirSlash(pos, rot, color, size, mirror, life) {
+    const m = new THREE.SpriteMaterial({ map: slashTex, color: color, transparent: true, blending: THREE.AdditiveBlending, depthTest: false, depthWrite: false, opacity: 1, rotation: rot });
+    const sp = new THREE.Sprite(m); sp.position.set(pos.x, pos.y, pos.z + 0.8); sp.renderOrder = 18; scene.add(sp);
+    tween(life || 0.3, k => { const z = size * (0.75 + 0.45 * k); sp.scale.set(mirror ? -z : z, z, 1); m.opacity = 1 - k * k; m.rotation = rot + (mirror ? -1 : 1) * k * 0.35; }, () => { scene.remove(sp); m.dispose(); });
+}
+// a straight thrust: a long streak running from the attacker through the foe
+function thrustFX(from, to, color, w, life) {
+    const dx = to.x - from.x, dy = to.y - from.y, L = Math.hypot(dx, dy) + 2.5;
+    const m = new THREE.SpriteMaterial({ map: dotTex, color: color, transparent: true, blending: THREE.AdditiveBlending, depthTest: false, depthWrite: false, rotation: Math.atan2(dy, dx) });
+    const sp = new THREE.Sprite(m); sp.position.set((from.x + to.x) / 2 + 1, (from.y + to.y) / 2, to.z + 0.9); sp.renderOrder = 18; scene.add(sp);
+    tween(life || 0.26, k => { sp.scale.set(L * (0.4 + 0.8 * Math.min(1, k * 3)), (w || 0.5) * (1 - k * 0.6), 1); m.opacity = 1 - k; }, () => { scene.remove(sp); m.dispose(); });
+}
+function strikeImpact(u, f, type, a) {
+    const S = strikeStyle(u), K = u.mech ? 1.8 : 1, p = FPOS(f), up = UPOS(u), c1 = S.c1, c2 = S.c2;
+    const L = { x: p.x - 0.5, y: p.y + 0.4, z: p.z };
+    if (type === 4) {                                         // PSYCHE: the direct stab
+        const from = { x: up.x + 0.8, y: p.y, z: p.z };
+        if (S.kind === 'arrow') projectile({ x: up.x + 0.6, y: up.y + 0.3, z: up.z }, p, c1, 0.08, 0, 0.7);
+        if (S.kind === 'twin') { thrustFX({ x: from.x, y: p.y + 0.35 }, { x: p.x, y: p.y + 0.35, z: p.z }, c1, 0.4 * K); thrustFX({ x: from.x, y: p.y - 0.35 }, { x: p.x, y: p.y - 0.35, z: p.z }, c2, 0.4 * K); }
+        else thrustFX(from, p, S.kind === 'flame' ? 0xffa040 : c1, (S.kind === 'blunt' ? 1.1 : S.kind === 'rapier' ? 0.28 : 0.55) * K);
+        fxFlash({ x: p.x + 1.2, y: p.y, z: p.z }, 0xb07aff, 3.4 * K, 0.3);                 // psyche flash bursting out the far side
+        fxFlash(p, S.kind === 'blunt' ? c2 : 0xffffff, (S.kind === 'blunt' ? 6 : 3.6) * K, 0.25);
+        particles({ x: p.x + 0.8, y: p.y, z: p.z }, c2, 12, { speed: 9, up: 0.1, grav: 2 });
+        if (S.kind === 'ice') particles(p, 0xcff2ff, 10, { speed: 6, size: 0.7 });
+        if (S.kind === 'blunt') ringFX(p, c1, 0.4, 4 * K, 0.35, false);
+        return;
+    }
+    if (type === 3) {                                         // HEAVY: straight down the middle
+        if (S.kind === 'arrow') { projectile({ x: p.x + 0.4, y: p.y + 12, z: p.z }, p, c1, 0.2, 0, 0.9); }
+        else if (S.kind === 'twin') { dirSlash({ x: p.x - 0.35, y: p.y, z: p.z }, -Math.PI / 2 + 0.75, c1, 4.6 * K, false); dirSlash({ x: p.x + 0.35, y: p.y, z: p.z }, -Math.PI / 2 + 0.75, c2, 4.6 * K, true); }
+        else dirSlash(p, -Math.PI / 2 + 0.75, S.kind === 'flame' ? 0xffa040 : c1, (S.kind === 'rapier' ? 4.2 : 5.6) * K, false, 0.34);
+        if (S.kind === 'flame') beamFX({ x: p.x, y: GROUND, z: p.z }, 0xff8a30, 8 * K, 0.9 * K, 0.45);
+        if (S.kind === 'blunt' || S.kind === 'pole' || u.mech) { debris({ x: p.x, y: GROUND + 0.4, z: p.z }, 0x5a5a66, u.mech ? 8 : 4); }
+        ringFX({ x: p.x, y: GROUND + 0.1, z: p.z }, S.kind === 'ice' ? 0xcff2ff : c2, 0.4, 3.6 * K, 0.4, true);
+        fxFlash(p, 0xffffff, 4.2 * K, 0.28);
+        particles(p, c2, 14, { speed: 8, up: 1.2 });
+        return;
+    }
+    const mirror = type === 2, rot = mirror ? 0.15 : -0.35;   // LIGHT cuts from one side, MEDIUM from the other
+    if (S.kind === 'arrow') {
+        projectile({ x: up.x + 0.6, y: up.y + 0.3, z: up.z + (mirror ? 0.9 : -0.9) }, { x: p.x, y: p.y + (mirror ? -0.4 : 0.4), z: p.z }, c1, 0.14, mirror ? 1.2 : 2.6, 0.55, null);
+        dirSlash(L, rot, c2, 2.4, mirror, 0.22);
+    } else if (S.kind === 'claw') {
+        [-0.45, 0, 0.45].forEach((o, i) => dirSlash({ x: L.x + o * 0.4, y: L.y + o, z: L.z }, rot, i === 1 ? c2 : c1, 3.2 * K, mirror, 0.24));
+    } else if (S.kind === 'twin') {
+        dirSlash(L, rot, c1, 3.8 * K, mirror); dirSlash({ x: L.x + 0.5, y: L.y - 0.4, z: L.z }, rot + 0.4, c2, 3.2 * K, mirror);
+    } else if (S.kind === 'blunt') {
+        dirSlash(L, rot, c1, 3.6 * K, mirror, 0.2); ringFX(p, c2, 0.4, 3 * K, 0.3, false); fxFlash(p, c2, 3.2 * K, 0.22);
+    } else if (S.kind === 'pole') {
+        dirSlash(L, mirror ? 0.55 : -0.95, c1, 5.4 * K, mirror, 0.3);      // wide sweeping arc
+    } else if (S.kind === 'rapier') {
+        dirSlash(L, rot, c1, 3.0 * K, mirror, 0.18);
+    } else {
+        dirSlash(L, rot, S.kind === 'flame' ? 0xffa040 : c1, 4.4 * K, mirror);
+    }
+    if (S.kind === 'flame') particles(p, 0xff8a30, 12, { speed: 5, up: 1.4, grav: -2, size: 0.7 });
+    if (S.kind === 'ice') particles(p, 0xcff2ff, 10, { speed: 7, size: 0.6 });
+    particles(p, c2, 8, { speed: 7 });
+}
 function unitHitFX(u, f, dmg, type) {
-    const a = vis(u), h = u.home, tp = f.actor.mesh.position;
-    u.poseUntil = performance.now() + 260;
-    const dx = tp.x - h.x, dz = tp.z - h.z, L = Math.hypot(dx, dz) || 1, reach = Math.min(L - 1.6, type === 3 ? 4.6 : type === 4 ? 2.0 : 3.8);
-    tween(0.26, k => { const e = Math.sin(k * Math.PI); a.mesh.position.x = h.x + dx / L * reach * e; a.mesh.position.z = h.z + dz / L * reach * e; a.blob.position.x = a.mesh.position.x; a.blob.position.z = a.mesh.position.z; });
+    const a = vis(u), h = u.home, tp = f.actor.mesh.position, S = strikeStyle(u), ranged = !u.mech && S.kind === 'arrow';
+    u.poseUntil = performance.now() + 300;
+    const dx = tp.x - h.x, dz = tp.z - h.z, Lr = Math.hypot(dx, dz) || 1;
+    const reach = ranged ? 0.7 : Math.min(Lr - (type === 4 ? 1.1 : 1.6), type === 3 ? 4.6 : type === 4 ? 5.2 : 3.8);
+    const side = type === 1 ? 0.7 : type === 2 ? -0.7 : 0, dur = type === 4 ? 0.22 : type === 3 ? 0.34 : 0.26;
+    const tilt0 = type === 1 ? 0.45 : type === 2 ? -0.45 : 0, y0 = a.mesh.position.y;
+    tween(dur, k => {
+        const e = Math.sin(k * Math.PI), sw = Math.min(1, k * 2.2);
+        a.mesh.position.x = h.x + dx / Lr * reach * e;
+        a.mesh.position.z = h.z + dz / Lr * reach * e + side * e;
+        a.mesh.position.y = y0 + (type === 3 ? (k < 0.55 ? 2.4 * Math.sin(k / 0.55 * Math.PI / 2) : 2.4 * (1 - (k - 0.55) / 0.45)) * (u.mech ? 1.6 : 1) : 0);
+        a.mesh.rotation.z = type === 4 ? -0.12 * e : type === 3 ? -0.5 * Math.sin(k * Math.PI * 1.4) * (1 - k) : tilt0 * (1 - 2 * sw) * (1 - k);
+        a.blob.position.x = a.mesh.position.x; a.blob.position.z = a.mesh.position.z;
+    }, () => { if (!u.ko) a.mesh.rotation.z = 0; a.mesh.position.y = y0; });
     const bid = BID;
     setTimeout(() => {
         if (!live(bid) || f.dead) return;
         if (dmg < 0) { floatText('MISS', '#aab', FPOS(f), 1.2); return; }
-        const p = FPOS(f);
-        if (type === 4) burstFX(p, 0xb07aff, 1.2);
-        else if (u.key === 'lira' && !u.mech) projectile({ x: a.mesh.position.x + 0.5, y: a.mesh.position.y + 0.3, z: a.mesh.position.z }, p, 0x7dffb4, 0.12, 0.3, 0.5);
-        else slashFX(p, type === 3 || u.mech, u.mech ? 0xff8a3a : null);
+        strikeImpact(u, f, type, a);
         hurtFoe(f, dmg, type === 4 ? '#d2a8ff' : '#ffffff', type === 3 ? 1.6 : 1.3);
-        triggerCameraShake(0.12 + type * 0.08 + (u.mech ? 0.3 : 0));
-    }, 120);
+        triggerCameraShake(0.12 + type * 0.08 + (u.mech ? 0.3 : 0) + (type === 3 ? 0.25 : 0));
+    }, type === 3 ? 190 : type === 4 ? 110 : 125);
 }
 
 // ---------- the turn loop ----------
@@ -6018,9 +6110,72 @@ function csShot(x, z, o) {
         const d1 = Math.max(4, Math.hypot(CS.camT.x - CS.lookT.x, CS.camT.z - CS.lookT.z));
         if (d1 < d0 - 0.5) CS.fovT = Math.min(82, 2 * Math.atan(Math.tan(CS.fovT * Math.PI / 360) * d0 / d1) * 180 / Math.PI);
     }
+    csClearView();
     if (o.snap) CS.snap = true;
 }
 const csShotA = (a, o) => csShot(a.mesh.position.x, a.mesh.position.z, o);
+// ---------- clear line of sight: if anything solid stands between the camera and the people in the shot, swing the camera around it ----------
+const _ray = new THREE.Raycaster(), _rO = new THREE.Vector3(), _rD = new THREE.Vector3();
+let CS_OCC = null, CS_OCC_N = -1;
+function csOccluders() {        // solid, opaque props and buildings (trees/rocks instancing and the terrain are handled separately), with cached bounds
+    if (CS_OCC && CS_OCC_N === scene.children.length) return CS_OCC;
+    CS_OCC = []; CS_OCC_N = scene.children.length;
+    const box = new THREE.Box3(), sph = new THREE.Sphere();
+    scene.children.forEach(o => {
+        if (o === terrain || o === ocean || o.isSprite || o.isPoints || o.isInstancedMesh || (o.userData && o.userData.actor)) return;
+        let solid = false;
+        o.traverse(c => { if (c.isMesh && !c.isInstancedMesh && c.material && c.material.isMeshStandardMaterial && !c.material.transparent) solid = true; });
+        if (!solid) return;
+        box.setFromObject(o); box.getBoundingSphere(sph);
+        if (!(sph.radius > 0) || sph.radius > 400) return;
+        CS_OCC.push({ o: o, x: sph.center.x, z: sph.center.z, r: sph.radius });
+    });
+    return CS_OCC;
+}
+function csSubjects() {
+    const L = CS.lookT, d = Math.hypot(CS.camT.x - L.x, CS.camT.z - L.z), R = Math.max(9, d * 0.9), list = [];
+    CS.cast.forEach(a => {
+        if (!a || !a.mesh || !a.mesh.visible) return;
+        const p = a.mesh.position, dd = Math.hypot(p.x - L.x, p.z - L.z); if (dd > R) return;
+        list.push({ dd: dd, pts: [{ x: p.x, y: p.y, z: p.z }, { x: p.x, y: p.y + a.half * 0.6, z: p.z }] });
+    });
+    const out = []; list.sort((u, v) => u.dd - v.dd).slice(0, 4).forEach(e => out.push(...e.pts));
+    if (HANGAR.cur && HANGAR.cur.mesh.visible) { const p = HANGAR.cur.mesh.position; if (Math.hypot(p.x - L.x, p.z - L.z) < R + 10) out.push({ x: p.x, y: p.y + 4, z: p.z }); }
+    return out;
+}
+function csBlocked(cam, pts, occ, early) {
+    if (typeof _ray.intersectObjects !== 'function') return 0;
+    let n = 0;
+    for (const t of pts) {
+        const dx = t.x - cam.x, dy = t.y - cam.y, dz = t.z - cam.z, D = Math.hypot(dx, dy, dz); if (D < 1) continue;
+        let hit = false;
+        if (cam.x < INTERIOR_X - 200 && cam.x > -1500) for (let i = 1; i < 12 && !hit; i++) { const k = i / 12, x = cam.x + dx * k, z = cam.z + dz * k; if (cam.y + dy * k < groundAt(x, z) - 0.2) hit = true; }   // hills
+        if (!hit) {
+            const near = occ.filter(e => segDist(e.x, e.z, cam.x, cam.z, t.x, t.z) < e.r).map(e => e.o);
+            if (near.length) { _rO.set(cam.x, cam.y, cam.z); _rD.set(dx / D, dy / D, dz / D); _ray.set(_rO, _rD); _ray.near = 0.3; _ray.far = D - 1.2; const hits = _ray.intersectObjects(near, true); hit = !!(hits && hits.length); }
+        }
+        if (hit) { n++; if (early) return n; }
+    }
+    return n;
+}
+function csClearView() {
+    const pts = csSubjects(); if (!pts.length) return;
+    const C = CS.camT, L = CS.lookT, d0 = Math.hypot(C.x - L.x, C.z - L.z), all = csOccluders();
+    const occ = all.filter(e => Math.hypot(e.x - L.x, e.z - L.z) < d0 * 1.3 + e.r + 12);
+    if (!csBlocked(C, pts, occ, true)) return;
+    const h0 = C.y - L.y, a0 = Math.atan2(C.x - L.x, C.z - L.z);
+    let best = null, bestN = 1e9;
+    for (const ds of [1, 0.72, 0.5, 0.34]) for (const da of [0, 0.35, -0.35, 0.7, -0.7, 1.05, -1.05, 1.4, -1.4, 1.9, -1.9]) for (const dh of [0, 5]) {
+        if (!ds && !da && !dh) continue;
+        const a = a0 + da, d = Math.max(3.5, d0 * ds), c = { x: L.x + Math.sin(a) * d, y: L.y + h0 + dh, z: L.z + Math.cos(a) * d };
+        if (CS.bounds) { const b = CS.bounds; c.x = clamp(c.x, b.x0, b.x1); c.z = clamp(c.z, b.z0, b.z1); c.y = Math.min(c.y, b.y1); }
+        c.y = Math.max(c.y, (c.x > INTERIOR_X - 200 || c.x < -1500 ? 0 : groundAt(c.x, c.z)) + 1.2);
+        const n = csBlocked(c, pts, occ, false);
+        if (!n) { C.set(c.x, c.y, c.z); return; }
+        if (n < bestN) { bestN = n; best = c; }
+    }
+    if (best) C.set(best.x, best.y, best.z);
+}
 const csMid = (a, b) => ({ x: (a.mesh.position.x + b.mesh.position.x) / 2, z: (a.mesh.position.z + b.mesh.position.z) / 2 });
 async function csTitle(text, ms) {
     const t = $('cs-title');
@@ -6109,6 +6264,8 @@ function updateCutscene(dt) {
     });
     if (CS.carry) { const b = CS.carry.a, p = CS.carry.by.mesh.position; b.mesh.position.set(p.x + 0.38, p.y - 0.2, p.z + 0.2); b.blob.visible = false; b.mesh.rotation.z = Math.sin(time * 3) * 0.08; }
     CS.torches.forEach(t => { const p = t.a.mesh.position; t.g.position.set(p.x + 0.7, p.y + 1.3, p.z + 0.2); t.g.visible = t.a.mesh.visible; });
+    CS.viewT = (CS.viewT || 0) + dt;
+    if (CS.viewT > 0.5 && !CS.skip) { CS.viewT = 0; csClearView(); }
     if (CS.bounds) { const b = CS.bounds; CS.camT.x = clamp(CS.camT.x, b.x0, b.x1); CS.camT.z = clamp(CS.camT.z, b.z0, b.z1); CS.camT.y = Math.min(CS.camT.y, b.y1); }
     if (CS.snap) { CS.camC.copy(CS.camT); CS.lookC.copy(CS.lookT); camera.fov = CS.fovT; CS.snap = false; }
     else { const k = Math.min(1, dt * CS.rate); CS.camC.lerp(CS.camT, k); CS.lookC.lerp(CS.lookT, k); camera.fov += (CS.fovT - camera.fov) * k; }
