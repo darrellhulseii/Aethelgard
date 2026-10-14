@@ -214,6 +214,7 @@
             background: linear-gradient(180deg, rgba(20, 60, 130, 0.28) 0%, rgba(0, 0, 0, 0) 34%, rgba(0, 0, 0, 0) 62%, rgba(10, 30, 70, 0.35) 100%); transition: opacity 0.9s ease; }
         #title-screen.out { opacity: 0; pointer-events: none; }
         body.titled #ui-layer { visibility: hidden; }
+        body.titled #touch-ui, body.titled #minimap-container { display: none !important; }
         #title-screen .ember { position: absolute; top: -20px; width: 10px; height: 7px; border-radius: 10px 0 10px 0; background: #ffd6e6; box-shadow: 0 0 4px rgba(255,255,255,0.8); animation: petal linear infinite; opacity: 0; }
         #title-screen .ember.pg { width: 11px; height: 14px; border-radius: 1px; background: #fffaf0; box-shadow: 0 0 6px rgba(255,240,200,0.9); }
         @keyframes petal { 0% { transform: translate(0, 0) rotate(0deg); opacity: 0; } 8% { opacity: 1; } 100% { transform: translate(-38vw, 108vh) rotate(720deg); opacity: 0; } }
@@ -756,8 +757,25 @@ const inForest = (x, z) => x < -8 && z > 8;
 const inDesert = (x, z) => x > 8 && z > 8;
 const inCrags = (x, z) => x < -8 && z < -8;
 const inSnow = (x, z) => x > 8 && z < -8;
+// The Frontier splits into ten biomes: the four far versions of the home quadrants plus six new lands
+const FAR_NEW = ['bloom', 'jungle', 'volcanic', 'savanna', 'canyon', 'tundra'];
+function farKey(x, z) {
+    const j = Math.sin(x * 0.031 + z * 0.017) * 18 + Math.sin(z * 0.047 - x * 0.023) * 10, jz = z + j, jx = x + j;
+    if (-z > Math.abs(x)) return jx < -60 ? 'volcanic' : jx < 100 ? 'tundra' : 'snow';           // the far north
+    if (x < 0) return jz > 120 ? 'bloom' : jz > 8 ? 'forest' : jz > -120 ? 'jungle' : 'crags';    // the far west
+    return jz > 110 ? 'canyon' : jz > 8 ? 'desert' : jz > -140 ? 'savanna' : 'snow';             // the far east
+}
+const farW = (x, z) => smooth(222, 250, Math.max(Math.abs(x), -z));
+const _FM = { forest: 0, desert: 0, crags: 0, snow: 0, bloom: 0, jungle: 0, volcanic: 0, savanna: 0, canyon: 0, tundra: 0 };
+const _FO = [[0, 0], [13, 0], [-13, 0], [0, 13], [0, -13]];
+function farMix(x, z) {             // soft borders: average the biome over five nearby samples
+    for (const k in _FM) _FM[k] = 0;
+    for (let i = 0; i < 5; i++) _FM[farKey(x + _FO[i][0], z + _FO[i][1])] += 0.2;
+    return _FM;
+}
 function regionAt(x, z) {
     if (Math.abs(x) < 26 && Math.abs(z) < 26) return 'village';
+    if (isFrontier(x, z)) return farKey(x, z);
     if (x >= 0 && z >= 0) return 'desert';
     if (x < 0 && z >= 0) return 'forest';
     if (x < 0 && z < 0) return 'crags';
@@ -772,6 +790,17 @@ function terrainHeight(x, z) {
     const ridge = 1 - Math.abs(fbm(x * 0.05 + 40, z * 0.05 + 40) * 2 - 1);
     y += (1 - wx) * (1 - wz) * (ridge * ridge * 9 + (vnoise(x * 0.25, z * 0.25) - 0.5) * 1.6);                 // jagged crags
     y += wx * (1 - wz) * (fbm(x * 0.035 + 10, z * 0.035 + 10) - 0.5) * 7;                                      // snow drifts
+    const fw = farW(x, z);
+    if (fw > 0) {                                                                                              // the six new Frontier landforms
+        const M = farMix(x, z); let d = 0;
+        if (M.bloom) d += M.bloom * (Math.sin(x * 0.07 + 1) * Math.cos(z * 0.06) * 2.6 + 1);                    // rolling flower hills
+        if (M.jungle) d += M.jungle * (fbm(x * 0.06 + 3, z * 0.06 + 9) - 0.5) * 8;                              // tangled jungle knolls
+        if (M.volcanic) d += M.volcanic * (ridge * ridge * 13 + 1.5);                                           // sharp lava ridges
+        if (M.savanna) d += M.savanna * (-y * 0.65 + Math.sin(x * 0.02) * 0.6);                                 // wide flat grassland
+        if (M.canyon) { const q = fbm(x * 0.022 + 21, z * 0.022 + 5) * 10, fq = Math.floor(q); d += M.canyon * ((fq + smooth(0.75, 1, q - fq)) * 1.5 - 4); }   // stepped mesas
+        if (M.tundra) d += M.tundra * (smooth(0.42, 0.58, fbm(x * 0.03 + 5, z * 0.03 + 5)) * 5 - 0.5);         // icy plateaus
+        y += d * fw;
+    }
     y = -0.8 + Math.log(1 + Math.exp(y + 0.8));                                                                // soft floor: valleys never flood
     for (let i = 0; i < PADS.length; i++) {
         const p = PADS[i];
@@ -936,6 +965,10 @@ const BIOME = {
 const COL_PLAZA = new THREE.Color(0x9b9aa8), COL_PLAZA2 = new THREE.Color(0x7f7e92), COL_BEACH = new THREE.Color(0xddcfa2);
 const COL_ICE = new THREE.Color(0x8fcdf0), COL_OASIS = new THREE.Color(0x2f7a45);
 PAVE.forEach(p => { p.col = new THREE.Color(p.c); });
+const FARC = { forest: BIOME.forest, desert: BIOME.desert, crags: BIOME.crags, snow: BIOME.snow };
+[['bloom', 0x6fcf5a, 0xa8e070], ['jungle', 0x1f6a2a, 0x2f8a3a], ['volcanic', 0x1e1a1c, 0x4a2a22], ['savanna', 0xd8b860, 0xb89a4a], ['canyon', 0xc2683a, 0xe0a070], ['tundra', 0xe6f6ff, 0xa8c8e8]]
+    .forEach(([k, a, b]) => { FARC[k] = { a: new THREE.Color(a), b: new THREE.Color(b) }; });
+const FAR_LAVA = new THREE.Color(0xff5a1a), FAR_PETAL = new THREE.Color(0xffb7d5);
 const _c1 = new THREE.Color(), _c2 = new THREE.Color();
 
 function groundColor(x, z, y, out) {
@@ -956,6 +989,16 @@ function groundColor(x, z, y, out) {
         rdR += B.road.r * w[k]; rdG += B.road.g * w[k]; rdB += B.road.b * w[k];
     }
     out.setRGB(r, g, b);
+    const fw = farW(x, z);
+    if (fw > 0) {                                        // each Frontier biome gets its own ground
+        const M = farMix(x, z), tt = clamp(n * 1.2 + sp * 0.25, 0, 1);
+        let fr = 0, fg = 0, fb = 0;
+        for (const k in M) if (M[k]) { const C = FARC[k]; _c1.copy(C.a).lerp(C.b, tt); fr += _c1.r * M[k]; fg += _c1.g * M[k]; fb += _c1.b * M[k]; }
+        _c2.setRGB(fr, fg, fb); out.lerp(_c2, fw);
+        if (M.volcanic && sp > 0.8) out.lerp(FAR_LAVA, Math.min(1, (sp - 0.8) * 5) * M.volcanic * fw);          // glowing lava cracks
+        if (M.tundra && sp > 0.75) out.lerp(COL_ICE, (sp - 0.75) * 3 * M.tundra * fw);                           // glassy ice patches
+        if (M.bloom && sp > 0.86) out.lerp(FAR_PETAL, (sp - 0.86) * 5 * M.bloom * fw);                           // petal carpets
+    }
     const rd = 1 - smooth(1.7, 3.8, roadDist(x, z));                      // worn dirt roads
     if (rd > 0) { const v = 0.9 + sp * 0.2; _c2.setRGB(rdR * v, rdG * v, rdB * v); out.lerp(_c2, rd * 0.9); }
     const dp = Math.hypot(x, z + 2);                                      // village plaza cobbles
@@ -1508,6 +1551,28 @@ Object.assign(BESTIARY, {
     glacier_colossus:{ name: 'GLACIER COLOSSUS', body: 'golem', pal: ['#bfeaff', '#7ab8e0', '#ffffff', '#2a8fd0', '#2a5a8a'], hp: 4300, dmg: [170, 235], xp: 98, trait: 'armor', trait2: 'regen', size: 1.4 },
     blizzard_harpy:  { name: 'BLIZZARD HARPY', body: 'flyer', fly: true, pal: ['#8fb8e8', '#4a6e9e', '#ffffff', '#bff8ff', '#ffd24a'], hp: 2500, dmg: [150, 205], xp: 74, trait: 'evade', trait2: 'double' },
     permafrost_ooze: { name: 'PERMAFROST OOZE', body: 'blob', pal: ['#7ac8f0', '#2a7ab0', '#ffffff', '#1a4a7a', '#12162a'], hp: 3300, dmg: [140, 195], xp: 76, trait: 'chill', trait2: 'regen', size: 1.2 },
+    // ---- the six new Frontier lands ----
+    petal_sprite:    { name: 'PETAL SPRITE', body: 'wisp', fly: true, pal: ['#ffd6e8', '#ff8ac0', '#ffffff', '#fff06a', '#6a2a4a'], hp: 2500, dmg: [145, 200], xp: 74, trait: 'evade', trait2: 'regen' },
+    thorn_stag:      { name: 'THORN STAG', body: 'beast', pal: ['#9a6a3a', '#5a3a1a', '#e8dcc0', '#ff6ad5', '#2a1a10'], hp: 3200, dmg: [160, 220], xp: 80, trait: 'thorns', trait2: 'charge', size: 1.25 },
+    pollen_moth:     { name: 'POLLEN MOTH', body: 'flyer', fly: true, pal: ['#fff06a', '#c8a020', '#ffffff', '#ff8a3a', '#2a2a10'], hp: 2600, dmg: [150, 205], xp: 76, trait: 'poison', trait2: 'evade' },
+    bloom_golem:     { name: 'BLOOM GOLEM', body: 'golem', pal: ['#6fcf5a', '#3a8a2a', '#ffb7d5', '#ff6ad5', '#1a3a10'], hp: 4300, dmg: [165, 230], xp: 96, trait: 'regen', trait2: 'armor', size: 1.35 },
+    jungle_stalker:  { name: 'JUNGLE STALKER', body: 'beast', fur: true, pal: ['#d8a020', '#2a1a10', '#ffe08a', '#7dff4a', '#12160a'], hp: 3000, dmg: [170, 230], xp: 82, trait: 'double', trait2: 'evade', size: 1.15 },
+    venom_frog:      { name: 'VENOM FROG', body: 'blob', pal: ['#2aff6a', '#0a8a3a', '#ffe04a', '#ff3b30', '#0a1a0a'], hp: 2700, dmg: [150, 205], xp: 76, trait: 'poison', trait2: 'double' },
+    canopy_harpy:    { name: 'CANOPY HARPY', body: 'flyer', fly: true, pal: ['#2a8a3a', '#1a4a1a', '#ff6a3a', '#ffd24a', '#12160a'], hp: 2600, dmg: [155, 210], xp: 76, trait: 'evade', trait2: 'poison' },
+    vine_colossus:   { name: 'VINE COLOSSUS', body: 'golem', pal: ['#2f6a2a', '#1a3a1a', '#5aa64a', '#c2301a', '#d8ff66'], hp: 4500, dmg: [170, 235], xp: 100, trait: 'thorns', trait2: 'regen', size: 1.45 },
+    ember_salamander:{ name: 'EMBER SALAMANDER', body: 'bug', tail: true, pal: ['#ff5a1a', '#8a1a0a', '#ffd24a', '#ffffff', '#1a0a0a'], hp: 3000, dmg: [165, 225], xp: 80, trait: 'thorns', trait2: 'enrage' },
+    lava_golem:      { name: 'LAVA GOLEM', body: 'golem', pal: ['#2a1e1c', '#140c0a', '#ff6a1a', '#ffd24a', '#ff3b30'], hp: 4600, dmg: [175, 240], xp: 102, trait: 'armor', trait2: 'enrage', size: 1.4 },
+    phoenix_wisp:    { name: 'PHOENIX WISP', body: 'wisp', fly: true, pal: ['#ffb84d', '#ff5a1a', '#fff6c8', '#ff2a6a', '#2a0a0a'], hp: 2700, dmg: [160, 215], xp: 80, trait: 'regen', trait2: 'siphon' },
+    savanna_lion:    { name: 'SAVANNA LION', body: 'beast', fur: true, pal: ['#d8a84a', '#8a5a2a', '#ffe0a0', '#ff8a3a', '#1a1008'], hp: 3200, dmg: [175, 235], xp: 84, trait: 'double', trait2: 'enrage', size: 1.2 },
+    war_rhino:       { name: 'WAR RHINO', body: 'beast', pal: ['#8a8a96', '#4a4a56', '#d8d0c0', '#ff3b30', '#12121a'], hp: 4400, dmg: [180, 245], xp: 98, trait: 'charge', trait2: 'armor', size: 1.4 },
+    dust_vulture:    { name: 'DUST VULTURE', body: 'flyer', fly: true, pal: ['#6a4a3a', '#3a2a1a', '#e8d8c0', '#ff8a8a', '#1a1008'], hp: 2600, dmg: [155, 210], xp: 76, trait: 'siphon', trait2: 'evade' },
+    termite_queen:   { name: 'TERMITE QUEEN', body: 'bug', pal: ['#c8a060', '#8a6a3a', '#fff0c8', '#ff6a3a', '#1a1008'], hp: 3600, dmg: [155, 215], xp: 86, trait: 'regen', trait2: 'poison', size: 1.3 },
+    canyon_wyvern:   { name: 'CANYON WYVERN', body: 'flyer', fly: true, pal: ['#c2683a', '#7a3a1a', '#ffd0a0', '#ffd24a', '#1a0a08'], hp: 3300, dmg: [175, 240], xp: 88, trait: 'charge', trait2: 'double', size: 1.3 },
+    mesa_golem:      { name: 'MESA GOLEM', body: 'golem', pal: ['#b5603a', '#6a3a1a', '#e0a070', '#ffd24a', '#2a1008'], hp: 4600, dmg: [170, 235], xp: 100, trait: 'armor', trait2: 'thorns', size: 1.45 },
+    rattler:         { name: 'RED RATTLER', body: 'bug', tail: true, pal: ['#c24a2a', '#6a1a0a', '#ffd0a0', '#fff06a', '#1a0a08'], hp: 2800, dmg: [160, 220], xp: 78, trait: 'poison', trait2: 'evade' },
+    tundra_mammoth:  { name: 'TUNDRA MAMMOTH', body: 'beast', fur: true, pal: ['#6a4a32', '#3a2a1a', '#fff6e0', '#9fe8ff', '#12100a'], hp: 4800, dmg: [180, 245], xp: 104, trait: 'charge', trait2: 'armor', size: 1.5 },
+    aurora_wisp:     { name: 'AURORA WISP', body: 'wisp', fly: true, pal: ['#7dffb4', '#5a5aff', '#ffffff', '#ff6ad5', '#0a0a2a'], hp: 2800, dmg: [160, 215], xp: 80, trait: 'warded', trait2: 'chill' },
+    ice_drake:       { name: 'ICE DRAKE', body: 'flyer', fly: true, pal: ['#bfeaff', '#5a8ac8', '#ffffff', '#2a8fd0', '#0a1a2a'], hp: 3300, dmg: [170, 235], xp: 88, trait: 'chill', trait2: 'double', size: 1.3 },
     // field bosses (drawn from these, fought through ENEMY_TYPES.fb_*)
     colossus_m:      { name: 'CINDER COLOSSUS', body: 'golem', pal: ['#2a1e1c', '#140c0a', '#4a3a36', '#ff6a1a', '#ffd24a'], hp: 1, dmg: [1, 1], xp: 1, trait: 'none' },
     rime_m:          { name: 'RIME TITAN', body: 'golem', fur: true, pal: ['#dff2ff', '#9ab8d8', '#ffffff', '#5ac8f0', '#1a3a6a'], hp: 1, dmg: [1, 1], xp: 1, trait: 'none' },
@@ -1518,7 +1583,13 @@ const FRONTIER_ENEMIES = {
     forest: ['dire_thornwolf', 'rotcap_matriarch', 'gloom_moth', 'heartwood_golem', 'bog_horror'],
     desert: ['glass_scorpion', 'sandstorm_djinn', 'sunstone_golem', 'mirage_twin', 'war_drone'],
     crags: ['magma_fiend', 'cinder_hound', 'basalt_titan', 'mecha_enforcer', 'ash_scarab'],
-    snow: ['rime_warg', 'frost_wraith', 'glacier_colossus', 'blizzard_harpy', 'permafrost_ooze']
+    snow: ['rime_warg', 'frost_wraith', 'glacier_colossus', 'blizzard_harpy', 'permafrost_ooze'],
+    bloom: ['petal_sprite', 'thorn_stag', 'pollen_moth', 'bloom_golem', 'gloom_moth'],
+    jungle: ['jungle_stalker', 'venom_frog', 'canopy_harpy', 'vine_colossus', 'bog_horror'],
+    volcanic: ['ember_salamander', 'lava_golem', 'phoenix_wisp', 'magma_fiend', 'cinder_hound'],
+    savanna: ['savanna_lion', 'war_rhino', 'dust_vulture', 'termite_queen', 'war_drone'],
+    canyon: ['canyon_wyvern', 'mesa_golem', 'rattler', 'glass_scorpion', 'sandstorm_djinn'],
+    tundra: ['tundra_mammoth', 'aurora_wisp', 'ice_drake', 'rime_warg', 'frost_wraith']
 };
 const TRAIT_TEXT = {
     enrage: 'ENRAGES below half HP: +50% damage', warded: 'WARDED: weapon hits do 40% less (Psyche and piercing arts cut through)', siphon: 'SIPHONS: heals half the damage it deals',
@@ -2525,6 +2596,17 @@ function buildStage(key, idx, o) {
         [shard, new THREE.MeshBasicMaterial({ color: 0xff4a2e }), 12, 0.8, 1.5], [rockGeo, rockMat(0x3a3a44), 18, 0.8, 1.8]] });
     buildStage('snow', 3, { ground: 0xeaf4ff, ring: 0xb4d0ea, props: [[treePine(0x1f5f45, 0xeaf6ff), matProp, 28, 1.1, 1.9],
         [crys, new THREE.MeshStandardMaterial({ color: 0x9fe8ff, emissive: 0x2a8fd0, emissiveIntensity: 0.6, transparent: true, opacity: 0.85, flatShading: true }), 12, 0.7, 1.4], [rockGeo, rockMat(0xb8c6d6), 14, 0.7, 1.6]] });
+    // the six new Frontier lands
+    const blossomS = mergeGeos([[gCyl(0.3, 0.45, 4, 6, 0, 2, 0), 0x6a4a3a], [gIco(2.4, 0, 0, 5, 0), 0xffb7d5], [gIco(1.6, 0, 1.3, 4.4, 0.6), 0xff9ac6], [gIco(1.4, 0, -1.2, 4.6, -0.5), 0xffd6e8]]);
+    const flowerS = c => mergeGeos([[gCyl(0.04, 0.05, 0.7, 4, 0, 0.35, 0), 0x3f8a36], [gBox(0.42, 0.12, 0.42, 0, 0.72, 0), c]]);
+    buildStage('bloom', 5, { ground: 0x6fcf5a, ring: 0xffb7d5, props: [[blossomS, matProp, 18, 1, 1.6], [flowerS(0xff6ad5), matProp, 40, 0.9, 1.6], [flowerS(0xfff06a), matProp, 40, 0.9, 1.6], [tuftGeo(0x7fd85a), matProp, 40, 0.8, 1.4]] });
+    const kapokS = mergeGeos([[gCyl(1, 1.6, 14, 8, 0, 7, 0), 0x5a4030], [gIco(5, 0, 0, 15, 0), 0x1f7a2e], [gIco(3.5, 0, 3, 13.5, 1), 0x2a8a3a], [gIco(3.2, 0, -3, 14, -1), 0x186a28]]);
+    buildStage('jungle', 6, { ground: 0x1f6a2a, ring: 0x3a2a18, props: [[kapokS, matProp, 12, 0.8, 1.2], [treeOak(0x2a8a3a), matProp, 16, 1.2, 1.8], [mergeGeos([[gCyl(0.12, 0.16, 0.7, 6, 0, 0.35, 0), 0xe8e0d0], [cap, 0x7dff4a]]), matLit, 16, 0.8, 1.6], [tuftGeo(0x2f8a3a), matProp, 50, 1, 1.8]] });
+    buildStage('volcanic', 7, { ground: 0x1e1a1c, ring: 0xff5a1a, props: [[gCone(1.6, 9, 5, 0, 4.3, 0), rockMat(0x1a1416), 26, 0.8, 1.9], [shard, new THREE.MeshBasicMaterial({ color: 0xff6a1a }), 18, 0.8, 1.6], [deadTreeGeo(0x2a2222), matProp, 8, 1, 1.5], [rockGeo, rockMat(0x2a2022), 16, 0.8, 1.8]] });
+    const acaciaS = mergeGeos([[gCyl(0.3, 0.45, 5, 6, 0, 2.5, 0), 0x6a4a2a], [gCyl(4.2, 3.4, 0.9, 9, 0, 5.6, 0), 0x6a8a2a], [gCyl(2.6, 2.2, 0.7, 8, 1.2, 6.2, 0.4), 0x7a9a3a]]);
+    buildStage('savanna', 8, { ground: 0xd8b860, ring: 0xb89a4a, props: [[acaciaS, matProp, 10, 0.9, 1.4], [tuftGeo(0xe0c070), matProp, 70, 1, 1.9], [gCone(1.2, 4, 6, 0, 2, 0), rockMat(0xa8743a), 6, 0.8, 1.3], [rockGeo, rockMat(0xc8a870), 10, 0.6, 1.3]] });
+    buildStage('canyon', 9, { ground: 0xc2683a, ring: 0x8a4a2a, props: [[mesaGeo(), matProp, 4, 0.8, 1.1], [cactusGeo(0x3f8f4f), matProp, 14, 0.9, 1.5], [gCone(1.6, 7, 6, 0, 3.4, 0), rockMat(0xb5603a), 18, 0.8, 1.6], [rockGeo, rockMat(0xd08a55), 14, 0.6, 1.5]] });
+    buildStage('tundra', 10, { ground: 0xe6f6ff, ring: 0x7dffb4, props: [[shard, new THREE.MeshStandardMaterial({ color: 0xcff2ff, emissive: 0x2a6a90, emissiveIntensity: 0.5, transparent: true, opacity: 0.85, flatShading: true }), 24, 0.9, 1.8], [treePine(0x2f6f5a, 0xffffff), matProp, 16, 1, 1.6], [rockGeo, rockMat(0xc8d6e6), 14, 0.7, 1.6]] });
 })();
 
 // ==========================================
@@ -2827,10 +2909,9 @@ const drifts = {
 
 // ---------- A LIVING FRONTIER: every far biome gets its own plants, animals, light and water ----------
 (function buildWildFrontier() {
-    const FR = {
-        forest: (x, z) => inForest(x, z) && isFrontier(x, z), desert: (x, z) => inDesert(x, z) && isFrontier(x, z),
-        crags: (x, z) => inCrags(x, z) && isFrontier(x, z), snow: (x, z) => inSnow(x, z) && isFrontier(x, z)
-    };
+    const FK = k => (x, z) => isFrontier(x, z) && farKey(x, z) === k;
+    const FR = {};
+    ['forest', 'desert', 'crags', 'snow'].concat(FAR_NEW).forEach(k => { FR[k] = FK(k); });
     const S = (n, region, o) => scatter(n, region, Object.assign({ local: true }, o));
     const glossy = c => new THREE.MeshStandardMaterial({ color: c, vertexColors: true, roughness: 0.15, metalness: 0.6, flatShading: true });
     const iceMat = new THREE.MeshStandardMaterial({ color: 0xcff2ff, roughness: 0.1, metalness: 0.1, transparent: true, opacity: 0.82, flatShading: true, emissive: 0x2a6a90, emissiveIntensity: 0.25 });
@@ -2890,12 +2971,18 @@ const drifts = {
     };
     const herd = (kind, region, n, groups) => S(groups, region, { gap: 30, rad: 4 }).forEach(c => {
         for (let i = 0; i < n; i++) {
-            const m = new THREE.Mesh(ANIMALS[kind], matProp); m.castShadow = true; scene.add(m);
+            const m = new THREE.Mesh(ANIMALS[kind], matProp); m.castShadow = true; scene.add(m); m.position.set(c.x, groundAt(c.x, c.z), c.z);
             const ph = Math.random() * 6.28, r = 3 + Math.random() * 6, sp = 0.05 + Math.random() * 0.08;
-            animated.push(t => { const a = ph + t * sp, x = c.x + Math.cos(a) * r, z = c.z + Math.sin(a) * r * 0.7; m.position.set(x, groundAt(x, z) + Math.abs(Math.sin(t * 6 + ph)) * 0.06, z); m.rotation.y = -a - Math.PI / 2 * (sp > 0 ? 1 : -1); });
+            animated.push(t => { if (Math.abs(c.x - camera.position.x) > 170 || Math.abs(c.z - camera.position.z) > 170) return; const a = ph + t * sp, x = c.x + Math.cos(a) * r, z = c.z + Math.sin(a) * r * 0.7; m.position.set(x, groundAt(x, z) + Math.abs(Math.sin(t * 6 + ph)) * 0.06, z); m.rotation.y = -a - Math.PI / 2 * (sp > 0 ? 1 : -1); });
         }
     });
-    herd('deer', FR.forest, 5, 6); herd('camel', FR.desert, 4, 5); herd('goat', FR.crags, 5, 5); herd('fox', FR.snow, 4, 6);
+    Object.assign(ANIMALS, {
+        zebra: mergeGeos([[gBox(1.8, 0.8, 0.6, 0, 1.5, 0), 0xffffff], [gBox(0.2, 0.82, 0.62, -0.5, 1.5, 0), 0x1a1a1a], [gBox(0.2, 0.82, 0.62, 0, 1.5, 0), 0x1a1a1a], [gBox(0.2, 0.82, 0.62, 0.5, 1.5, 0), 0x1a1a1a], leg(-0.6, -0.2, 1.1), leg(0.6, -0.2, 1.1), leg(-0.6, 0.2, 1.1), leg(0.6, 0.2, 1.1), [gBox(0.3, 0.9, 0.3, 0.9, 2.1, 0), 0xffffff], [gBox(0.6, 0.36, 0.32, 1.1, 2.5, 0), 0x1a1a1a], [gBox(0.6, 0.12, 0.1, 0.4, 2.0, 0), 0x1a1a1a]]),
+        giraffe: mergeGeos([[gBox(1.8, 0.9, 0.7, 0, 2.6, 0), 0xe0a84a], [gBox(0.4, 0.3, 0.72, -0.3, 2.7, 0), 0x8a5a2a], [gBox(0.4, 0.3, 0.72, 0.4, 2.5, 0), 0x8a5a2a], leg(-0.6, -0.22, 2.2), leg(0.6, -0.22, 2.2), leg(-0.6, 0.22, 2.2), leg(0.6, 0.22, 2.2), [gBox(0.32, 2.6, 0.32, 0.95, 4.2, 0), 0xe0a84a], [gBox(0.7, 0.36, 0.34, 1.2, 5.6, 0), 0xe0a84a], [gBox(0.08, 0.3, 0.08, 1.0, 5.95, 0.1), 0x6a4a2a], [gBox(0.08, 0.3, 0.08, 1.0, 5.95, -0.1), 0x6a4a2a]]),
+        elephant: mergeGeos([[gBox(2.6, 1.8, 1.6, 0, 2.6, 0), 0x8a8a96], [gBox(0.4, 1.7, 0.4, -0.9, 0.85, -0.5), 0x7a7a86], [gBox(0.4, 1.7, 0.4, 0.9, 0.85, -0.5), 0x7a7a86], [gBox(0.4, 1.7, 0.4, -0.9, 0.85, 0.5), 0x7a7a86], [gBox(0.4, 1.7, 0.4, 0.9, 0.85, 0.5), 0x7a7a86], [gBox(1.1, 1.2, 1.1, 1.6, 3.0, 0), 0x8a8a96], [gBox(0.3, 1.6, 0.3, 2.2, 2.0, 0), 0x7a7a86], [gBox(0.1, 1.3, 1.2, 1.3, 3.0, 0), 0x9a9aa6], [gBox(0.5, 0.12, 0.12, 2.2, 2.6, 0.32), 0xfff6e0], [gBox(0.5, 0.12, 0.12, 2.2, 2.6, -0.32), 0xfff6e0]]),
+        mammoth: mergeGeos([[gBox(2.8, 2.0, 1.8, 0, 2.8, 0), 0x6a4a32], [gBox(3.0, 0.8, 1.9, 0, 2.0, 0), 0x5a3a24], [gBox(0.5, 1.6, 0.5, -1, 0.8, -0.6), 0x4a321e], [gBox(0.5, 1.6, 0.5, 1, 0.8, -0.6), 0x4a321e], [gBox(0.5, 1.6, 0.5, -1, 0.8, 0.6), 0x4a321e], [gBox(0.5, 1.6, 0.5, 1, 0.8, 0.6), 0x4a321e], [gBox(1.2, 1.3, 1.2, 1.7, 3.3, 0), 0x6a4a32], [gBox(0.32, 1.8, 0.32, 2.3, 2.1, 0), 0x5a3a24], [gBox(1.0, 0.14, 0.14, 2.5, 2.4, 0.4, 0, 0, 0.5), 0xfff6e0], [gBox(1.0, 0.14, 0.14, 2.5, 2.4, -0.4, 0, 0, 0.5), 0xfff6e0]])
+    });
+    herd('deer', FR.forest, 5, 5); herd('camel', FR.desert, 4, 4); herd('goat', FR.crags, 5, 4); herd('fox', FR.snow, 4, 5);
     const bird = mergeGeos([[gBox(0.25, 0.12, 0.6, 0, 0, 0), 0x2a2a3a], [gBox(1.2, 0.05, 0.35, -0.7, 0.05, 0, 0, 0, 0.3), 0x3a3a4a], [gBox(1.2, 0.05, 0.35, 0.7, 0.05, 0, 0, 0, -0.3), 0x3a3a4a]]);
     [[-360, 60], [-200, -320], [360, 100], [330, -300], [-380, -200], [420, -60]].forEach(([cx, cz], fi) => {
         for (let i = 0; i < 7; i++) {
@@ -2905,9 +2992,95 @@ const drifts = {
     });
     const flutter = (region, cols, n) => S(n, region, { gap: 3, rad: 1 }).forEach((p, i) => {
         const g = makeGlow(p.x, p.y + 1.5, p.z, cols[i % cols.length], 0.9, 0.3), ph = Math.random() * 6;
-        animated.push(t => { g.position.set(p.x + Math.sin(t * 0.7 + ph) * 2.5, groundAt(p.x, p.z) + 1.2 + Math.abs(Math.sin(t * 5 + ph)) * 0.8, p.z + Math.cos(t * 0.5 + ph) * 2.5); });
+        animated.push(t => { if (Math.abs(p.x - camera.position.x) > 150 || Math.abs(p.z - camera.position.z) > 150) return; g.position.set(p.x + Math.sin(t * 0.7 + ph) * 2.5, groundAt(p.x, p.z) + 1.2 + Math.abs(Math.sin(t * 5 + ph)) * 0.8, p.z + Math.cos(t * 0.5 + ph) * 2.5); });
     });
     flutter(FR.forest, [0xff9ad8, 0xfff06a, 0x9fd2ff], 40); flutter(FR.forest, [0xd8ff66], 40); flutter(FR.desert, [0xffb84d], 16); flutter(FR.snow, [0xffffff], 20);
+
+    // ===== THE BLOOMING WILDS (far south-west): cherry blossoms, sunflowers, petal carpets, butterflies, deer =====
+    const blossom = mergeGeos([[gCyl(0.3, 0.45, 4, 6, 0, 2, 0), 0x6a4a3a], [gIco(2.4, 0, 0, 5, 0), 0xffb7d5], [gIco(1.6, 0, 1.3, 4.4, 0.6), 0xff9ac6], [gIco(1.4, 0, -1.2, 4.6, -0.5), 0xffd6e8]]);
+    const bls = S(80, FR.bloom, { gap: 4.5, rad: 1.4, smin: 0.8, smax: 1.4 }); instanced(blossom, matProp, bls, true); solidify(bls, 0.45);
+    const bb = S(30, FR.bloom, { gap: 4, rad: 1.4, smin: 0.8, smax: 1.3 }); instanced(birch, matProp, bb, true); solidify(bb, 0.4);
+    instanced(mergeGeos([[gCyl(0.06, 0.08, 2.2, 4, 0, 1.1, 0), 0x3f8a36], [gIco(0.5, 0, 0, 2.3, 0), 0xffd02a], [gIco(0.24, 0, 0.2, 2.35, 0), 0x5a3a1a]]), matProp, S(160, FR.bloom, { solo: false, smin: 0.8, smax: 1.3 }), false);
+    meadow(FR.bloom, [0xff6ad5, 0xfff06a, 0xffffff, 0x9fd2ff, 0xff8a3a, 0xc99bff], 120);
+    instanced(tuftGeo(0x8fe060), matProp, S(200, FR.bloom, { solo: false, smin: 0.8, smax: 1.4 }), false);
+    rockInst(S(20, FR.bloom, { gap: 4, rad: 1.2, smin: 0.8, smax: 1.8 }), 0x7a9a6a);
+    flutter(FR.bloom, [0xff9ad8, 0xffffff, 0xfff06a, 0x9fd2ff], 70); herd('deer', FR.bloom, 4, 4); herd('flamingo', FR.bloom, 5, 2);
+
+    // ===== THE VERDANT DEEP (far west): kapok giants, palms, giant ferns, rafflesia, glowing fungi, jungle pools =====
+    const kapok = mergeGeos([[gCyl(1, 1.6, 14, 8, 0, 7, 0), 0x5a4030], [gBox(0.5, 3, 2.6, 0, 1.5, 0), 0x4a3424], [gBox(2.6, 3, 0.5, 0, 1.5, 0), 0x4a3424], [gIco(5, 0, 0, 15, 0), 0x1f7a2e], [gIco(3.5, 0, 3, 13.5, 1), 0x2a8a3a], [gIco(3.2, 0, -3, 14, -1), 0x186a28]]);
+    const kps = S(45, FR.jungle, { gap: 9, rad: 2.4, smin: 0.8, smax: 1.3 }); instanced(kapok, matProp, kps, true); solidify(kps, 1.3);
+    const palm = mergeGeos([[gCyl(0.25, 0.35, 6, 6, 0, 3, 0), 0x8a6a4a]].concat([0, 1, 2, 3, 4, 5].map(i => { const g = new THREE.ConeGeometry(0.6, 3.2, 3); g.translate(0, 1.6, 0); g.rotateZ(1.25); g.rotateY(i * 1.05); g.translate(0, 6, 0); return [g, i % 2 ? 0x2f8a3a : 0x3fa04a]; })));
+    const pls = S(70, FR.jungle, { gap: 4, rad: 1, smin: 0.9, smax: 1.5 }); instanced(palm, matProp, pls, true); solidify(pls, 0.35);
+    instanced(fern, matProp, S(260, FR.jungle, { solo: false, smin: 1.2, smax: 2.6 }), false);
+    instanced(mergeGeos([[gCyl(0.9, 1, 0.2, 5, 0, 0.1, 0), 0xc2301a], [gCyl(0.35, 0.35, 0.3, 8, 0, 0.25, 0), 0xffd0a0]]), matProp, S(40, FR.jungle, { solo: false, smin: 0.8, smax: 1.5 }), false);
+    const jsh = S(60, FR.jungle, { gap: 1.5, rad: 0.5, smin: 0.8, smax: 1.8 }); instanced(shroom, matLit, jsh, false);
+    jsh.filter((_, i) => i % 6 === 0).forEach(p => makeGlow(p.x, p.y + 1, p.z, 0x7dff4a, 2.2, 0.2));
+    const poolMat = new THREE.MeshStandardMaterial({ color: 0x2f8a7a, roughness: 0.05, metalness: 0.35 });
+    S(6, FR.jungle, { gap: 18, rad: 6 }).forEach(p => { const m = new THREE.Mesh(new THREE.CircleGeometry(3.5 + Math.random() * 3, 18), poolMat); m.rotation.x = -Math.PI / 2; m.position.set(p.x, p.y + 0.06, p.z); scene.add(m); });
+    flutter(FR.jungle, [0xd8ff66], 80); flutter(FR.jungle, [0xff3b30, 0x2a8fd0, 0xffd24a], 24);
+
+    // ===== THE ASHEN REACHES (far north-west): a living volcano, lava pools, basalt fields, ash trees =====
+    const vcols = S(160, FR.volcanic, { gap: 1.8, rad: 1.0, smin: 0.9, smax: 1.4 }); vcols.forEach(p => { p.sx = p.sz = p.s; p.sy = 1 + Math.random() * 5; p.r = 0; }); instanced(hex, rockMat(0x1a1416), vcols, true);
+    const vsp = S(35, FR.volcanic, { gap: 6, rad: 1.6, smin: 0.8, smax: 1.8 }); instanced(spire, glossy(0xffffff), vsp, true); solidify(vsp, 1);
+    const vash = S(40, FR.volcanic, { gap: 5, rad: 1.4, smin: 0.9, smax: 1.4 }); instanced(deadTreeGeo(0x2a2222), matProp, vash, true);
+    vash.filter((_, i) => i % 3 === 0).forEach(p => makeGlow(p.x, p.y + 3.5 * p.s, p.z, 0xff6a1a, 1.8, 0.5));
+    const lavaMat = new THREE.MeshBasicMaterial({ color: 0xff5a1a });
+    S(10, FR.volcanic, { gap: 14, rad: 5 }).forEach(p => { const m = new THREE.Mesh(new THREE.CircleGeometry(2.5 + Math.random() * 2.5, 16), lavaMat); m.rotation.x = -Math.PI / 2; m.position.set(p.x, p.y + 0.08, p.z); scene.add(m); makeGlow(p.x, p.y + 0.6, p.z, 0xff6a1a, 5, 0.35); addCirc(p.x, p.z, 2.5); });
+    animated.push(t => { lavaMat.color.setRGB(1, 0.32 + Math.sin(t * 2) * 0.08, 0.08); });
+    S(1, FR.volcanic, { gap: 40, rad: 24, smin: 1, smax: 1 }).forEach(p => {                // the volcano itself
+        const m = new THREE.Mesh(mergeGeos([[gCone(26, 34, 10, 0, 17, 0), 0x2a2220], [gCone(18, 26, 10, 0, 21, 0), 0x3a2a26], [gCyl(6, 7, 1.5, 10, 0, 34, 0), 0xff5a1a]]), matProp);
+        m.position.set(p.x, p.y - 1, p.z); m.castShadow = true; scene.add(m); addCirc(p.x, p.z, 22);
+        makeGlow(p.x, p.y + 36, p.z, 0xff6a1a, 18, 0.4); for (let i = 0; i < 3; i++) addSmoke(p.x + rr(-2, 2), p.y + 35, p.z + rr(-2, 2));
+    });
+    meadow(FR.volcanic, [0xff5a1a, 0xffb84d, 0xff2a6a], 60);
+    S(8, FR.volcanic, { gap: 20, rad: 2 }).forEach(p => { addSmoke(p.x, p.y + 0.5, p.z); makeGlow(p.x, p.y + 0.4, p.z, 0xffa040, 3, 0.4); });
+    flutter(FR.volcanic, [0xff8a30, 0xffd24a], 40); herd('goat', FR.volcanic, 4, 2);
+
+    // ===== THE GOLDEN SAVANNA (far east): acacias, baobabs, termite mounds, golden grass, zebra, giraffe, elephant =====
+    const acacia = mergeGeos([[gCyl(0.3, 0.45, 5, 6, 0, 2.5, 0), 0x6a4a2a], [gBox(0.2, 2, 0.2, 0.8, 4.6, 0, 0, 0, -0.6), 0x6a4a2a], [gCyl(4.2, 3.4, 0.9, 9, 0, 5.6, 0), 0x6a8a2a], [gCyl(2.6, 2.2, 0.7, 8, 1.2, 6.2, 0.4), 0x7a9a3a]]);
+    const acs = S(50, FR.savanna, { gap: 11, rad: 1.4, smin: 0.9, smax: 1.4 }); instanced(acacia, matProp, acs, true); solidify(acs, 0.4);
+    const baobab = mergeGeos([[gCyl(1.6, 2.2, 6, 8, 0, 3, 0), 0x9a7a6a], [gBox(0.3, 2, 0.3, 1, 6.6, 0, 0, 0, -0.5), 0x8a6a5a], [gBox(0.3, 2, 0.3, -1, 6.6, 0, 0, 0, 0.5), 0x8a6a5a], [gIco(2.4, 0, 0, 7.6, 0), 0x5a7a2a]]);
+    const bao = S(14, FR.savanna, { gap: 18, rad: 2.4, smin: 0.9, smax: 1.3 }); instanced(baobab, matProp, bao, true); solidify(bao, 2);
+    const mound = mergeGeos([[gCone(1.2, 4, 6, 0, 2, 0), 0xa8743a], [gCone(0.6, 2.4, 5, 0.7, 1.2, 0.3), 0x9a6a32], [gCone(0.5, 1.8, 5, -0.6, 0.9, -0.3), 0xb8844a]]);
+    const mds = S(30, FR.savanna, { gap: 7, rad: 1.2, smin: 0.8, smax: 1.5 }); instanced(mound, matProp, mds, true); solidify(mds, 1);
+    instanced(tuftGeo(0xe0c070), matProp, S(380, FR.savanna, { solo: false, smin: 1, smax: 2 }), false);
+    instanced(tuftGeo(0xc8a040), matProp, S(240, FR.savanna, { solo: false, smin: 1, smax: 2 }), false);
+    meadow(FR.savanna, [0xffd24a, 0xff8a3a], 40);
+    herd('zebra', FR.savanna, 6, 5); herd('giraffe', FR.savanna, 3, 4); herd('elephant', FR.savanna, 3, 3);
+
+    // ===== THE RED CANYONLANDS (far south-east): mesas, stone arches, hoodoos, saguaros, red crystals =====
+    const cmesa = S(12, FR.canyon, { gap: 22, rad: 6, smin: 0.9, smax: 1.4 }); instanced(mesaGeo(), matProp, cmesa, true); solidify(cmesa, 6);
+    const arch = mergeGeos([[gBox(3, 12, 3, -7, 6, 0), 0xb5603a], [gBox(3, 12, 3, 7, 6, 0), 0xa8562f], [gBox(17, 3, 3.4, 0, 13.5, 0), 0xc2734a], [gBox(13, 1.2, 3.2, 0, 11.6, 0), 0xd08a55]]);
+    const archs = S(5, FR.canyon, { gap: 30, rad: 8, smin: 1, smax: 1.3 }); archs.forEach(p => { p.r = 0; addCirc(p.x - 7 * p.s, p.z, 1.9 * p.s); addCirc(p.x + 7 * p.s, p.z, 1.9 * p.s); }); instanced(arch, matProp, archs, true);
+    const choods = S(45, FR.canyon, { gap: 6, rad: 2.2, smin: 0.8, smax: 1.6 }); instanced(hoodoo, matProp, choods, true); solidify(choods, 1.6);
+    const csag = S(60, FR.canyon, { gap: 4, rad: 1, smin: 1, smax: 1.8 }); instanced(cactusGeo(0x3f8f4f), matProp, csag, true); solidify(csag, 0.5);
+    const rcrys = mergeGeos([[gCone(0.5, 3, 5, 0, 1.5, 0), 0xff3b30], [gCone(0.35, 2.2, 5, 0.6, 1.0, 0.2), 0xff8a3a], [gCone(0.3, 1.8, 5, -0.5, 0.9, -0.2), 0xffd27a]]);
+    const rcs = S(30, FR.canyon, { gap: 5, rad: 1, smin: 0.8, smax: 1.8 }); instanced(rcrys, matLit, rcs, false);
+    rcs.filter((_, i) => i % 4 === 0).forEach(p => makeGlow(p.x, p.y + 1.5, p.z, 0xff5a3a, 3, 0.25));
+    rockInst(S(40, FR.canyon, { gap: 3, rad: 1.3, smin: 1, smax: 2.4 }), 0xc2683a);
+    meadow(FR.canyon, [0xff8a3a, 0xffe06a], 50); herd('camel', FR.canyon, 4, 3);
+
+    // ===== THE AURORA TUNDRA (far north): ice spikes, crystal trees, frozen lakes, mammoths, the northern lights =====
+    const spike = mergeGeos([[gCone(0.8, 6, 5, 0, 3, 0), 0xdff6ff], [gCone(0.5, 4, 5, 0.8, 2, 0.3), 0xbfeaff], [gCone(0.4, 3, 5, -0.7, 1.5, -0.2), 0xeaf8ff]]);
+    const spk = S(70, FR.tundra, { gap: 4, rad: 1.2, smin: 0.8, smax: 2 }); instanced(spike, iceMat, spk, true); solidify(spk, 0.7);
+    const tits = S(45, FR.tundra, { gap: 4, rad: 1.4, smin: 0.8, smax: 1.5 }); instanced(icetree, iceMat, tits, true); solidify(tits, 0.5);
+    tits.filter((_, i) => i % 4 === 0).forEach(p => makeGlow(p.x, p.y + 5, p.z, 0x7dffb4, 3.4, 0.15));
+    const tpine = S(50, FR.tundra, { gap: 3.5, rad: 1.4, smin: 1, smax: 1.9 }); instanced(treePine(0x2f6f5a, 0xffffff), matProp, tpine, true); solidify(tpine, 0.35);
+    S(5, FR.tundra, { gap: 22, rad: 8 }).forEach(p => { const m = new THREE.Mesh(new THREE.CircleGeometry(6 + Math.random() * 4, 20), pondMat); m.rotation.x = -Math.PI / 2; m.position.set(p.x, p.y + 0.06, p.z); scene.add(m); });
+    meadow(FR.tundra, [0x9fd2ff, 0xffffff, 0x7dffb4], 60);
+    herd('mammoth', FR.tundra, 3, 4); herd('fox', FR.tundra, 3, 3);
+    (() => {                                                     // aurora curtains over the tundra
+        const c = mkCanvas(32, 128), g = c.getContext('2d'), gr = g.createLinearGradient(0, 0, 0, 128);
+        gr.addColorStop(0, 'rgba(160,90,255,0)'); gr.addColorStop(0.35, 'rgba(160,90,255,0.55)'); gr.addColorStop(0.7, 'rgba(90,255,170,0.8)'); gr.addColorStop(1, 'rgba(90,255,170,0)');
+        g.fillStyle = gr; g.fillRect(0, 0, 32, 128);
+        const tex = new THREE.CanvasTexture(c);
+        S(5, FR.tundra, { gap: 50, rad: 2 }).forEach((p, i) => {
+            const mat = new THREE.MeshBasicMaterial({ map: tex, transparent: true, opacity: 0.5, side: THREE.DoubleSide, depthWrite: false, blending: THREE.AdditiveBlending, fog: false });
+            const m = new THREE.Mesh(new THREE.PlaneGeometry(90, 26), mat); m.position.set(p.x, 62, p.z); m.rotation.y = i * 0.7; scene.add(m);
+            animated.push(t => { mat.opacity = 0.32 + Math.sin(t * 0.6 + i) * 0.18; m.rotation.y = i * 0.7 + Math.sin(t * 0.15 + i) * 0.25; m.position.y = 62 + Math.sin(t * 0.3 + i * 2) * 3; });
+        });
+    })();
+    flutter(FR.tundra, [0xffffff, 0x9fe8ff], 24);
 
     // ===== THE FOUR WONDERS =====
     const put = (geo, mat, x, z, ry, y) => { const m = new THREE.Mesh(geo, mat || matProp); m.position.set(x, y === undefined ? groundAt(x, z) : y, z); m.rotation.y = ry || 0; m.castShadow = true; m.receiveShadow = true; scene.add(m); return m; };
@@ -3139,8 +3312,9 @@ function updateTweens(dt) {
         const w = tweens[i];
         w.t += dt;
         const k = Math.min(1, w.t / w.dur);
-        w.update(k);
-        if (k >= 1) { tweens.splice(i, 1); if (w.done) w.done(); }
+        let bad = false;
+        try { w.update(k); } catch (e) { bad = true; console.warn('tween skipped:', e); }
+        if (k >= 1 || bad) { tweens.splice(i, 1); if (w.done) { try { w.done(); } catch (e) { console.warn('tween done skipped:', e); } } }
     }
 }
 
@@ -4239,7 +4413,7 @@ function floatText(text, color, pos, size) {
 
 // ---------- choreography helpers: ACT = the acting unit, TGT = its target ----------
 let BID = 0;
-const at = (ms, fn) => { const id = BID; setTimeout(() => { if (inCombat && id === BID && ACT && TGT) fn(); }, ms); };
+const at = (ms, fn) => { const id = BID; setTimeout(() => { if (inCombat && id === BID && ACT && TGT) { try { fn(); } catch (e) { console.warn('fx skipped:', e); } } }, ms); };
 const live = id => inCombat && id === BID;
 const GROUND = 0.12;
 const vis = u => (u.mech ? u.mechActor : u.actor);
@@ -4250,6 +4424,8 @@ function hpose(ms) { ACT.u.poseUntil = performance.now() + ms; }
 function heroHome(dur) { const a = ACT.a, h = ACT.home; moveActorTo(a, h.x, h.z, dur || 0.25, 0.6, () => { a.mesh.rotation.z = 0; }); }
 function eflash(ms) { TGT.u.flashUntil = performance.now() + (ms || 140); }
 const ALL_FOES = () => B.foes.filter(f => f.hp > 0);
+// targets for art choreography: the living, else foes still inside their OVERKILL window, else the current target
+const FX_FOES = () => { if (!B) return []; const L = ALL_FOES(); if (L.length) return L; const now = performance.now(), R = B.foes.filter(f => f.okUntil > now); return R.length ? R : TGT ? [TGT.u] : []; };
 const LIVE_PARTY = () => B.party.filter(u => !u.ko);
 
 // ---------- battle UI ----------
@@ -4376,14 +4552,36 @@ function traitHit(f, t, raw, pierce) {
     if (f.mark) raw *= 1.35;
     return Math.round(raw);
 }
+const OVERKILL_PCT = 0.3, OVERKILL_MS = 6500;
 function hurtFoe(f, d, color, size) {
-    if (!f || f.hp <= 0 || d <= 0) return;
+    if (!f || d <= 0) return;
+    const now = performance.now();
     d = d * 400 / (400 + (f.def || 0));            // defense: diminishing returns (DEF 30 = -7%, DEF 600 = -60%)
-    f.hp = Math.max(0, f.hp - Math.round(d));
-    f.flashUntil = performance.now() + 120;
-    floatText(String(Math.round(d)), color || '#ffffff', FPOS(f), size || 1.3);
+    const dealt = Math.round(d);
+    if (f.hp <= 0) {                                // OVERKILL (as in FFX): blows that land after the killing one still count
+        if (!(f.okUntil > now)) return;
+        f.okDmg = (f.okDmg || 0) + dealt;
+        floatText(String(dealt), '#ff9a3a', FPOS(f), (size || 1.3) * 0.95);
+        checkOverkill(f);
+        return;
+    }
+    const before = f.hp;
+    f.hp = Math.max(0, f.hp - dealt);
+    f.flashUntil = now + 120;
+    floatText(String(dealt), color || '#ffffff', FPOS(f), size || 1.3);
     renderFoes();
-    if (f.hp <= 0) killFoe(f);
+    if (f.hp <= 0) {
+        f.okDmg = Math.max(0, dealt - before); f.okNeed = Math.max(1, Math.round((f.maxHp || before) * OVERKILL_PCT)); f.okUntil = now + OVERKILL_MS;
+        killFoe(f); checkOverkill(f);
+    }
+}
+function checkOverkill(f) {
+    if (f.overkill || !f.okNeed || f.okDmg < f.okNeed) return;
+    f.overkill = true;
+    const p = FPOS(f); p.y += 1.3;
+    floatText('OVERKILL!', '#ffb020', p, 2.5);
+    fxFlash(p, 0xffb020, 6, 0.5); particles(p, 0xffd24a, 26, { speed: 8 });
+    triggerCameraShake(0.6);
 }
 function killFoe(f) {
     f.dead = true;
@@ -4539,7 +4737,7 @@ function unitHitFX(u, f, dmg, type) {
     }, () => { if (!u.ko) a.mesh.rotation.z = 0; a.mesh.position.y = y0; });
     const bid = BID;
     setTimeout(() => {
-        if (!live(bid) || f.dead) return;
+        if (!live(bid) || (f.dead && !(f.okUntil > performance.now()))) return;
         if (dmg < 0) { floatText('MISS', '#aab', FPOS(f), 1.2); return; }
         strikeImpact(u, f, type, a);
         hurtFoe(f, dmg, type === 4 ? '#d2a8ff' : '#ffffff', type === 3 ? 1.6 : 1.3);
@@ -4608,7 +4806,7 @@ function executeTurn() {
         (ART_ANIMS[combo.name] || ART_ANIMS['GEAR SMASH'])(() => {
             if (done || !live(bid)) return; done = true;
             if (bonus > 0) {
-                if (combo.tgt === 'all') ALL_FOES().forEach(x => hurtFoe(x, bonus * 0.8, '#ffd24a', 1.8));
+                if (combo.tgt === 'all') FX_FOES().forEach(x => hurtFoe(x, bonus * 0.8, '#ffd24a', 1.8));
                 else hurtFoe(TGT.u, bonus, '#ffd24a', 2.0);
             }
             triggerCameraShake(1.0);
@@ -4973,10 +5171,12 @@ function endCombat(result) {
         return;
     }
     if (result === null) { showDialogue('You slip away.'); return; }
-    const xp = foes.reduce((s, f) => s + (f.xp || 0), 0), gold = foes.reduce((s, f) => s + (f.gold || 0), 0);
+    const okN = foes.filter(f => f.overkill).length;          // OVERKILL: x1.5 XP, x2 gold and a bonus drop per foe
+    const xp = foes.reduce((s, f) => s + Math.round((f.xp || 0) * (f.overkill ? 1.5 : 1)), 0), gold = foes.reduce((s, f) => s + (f.gold || 0) * (f.overkill ? 2 : 1), 0);
     story.gold += gold;
     const drops = [];
     if (Math.random() < 0.35) { const d = ['potion', 'potion', 'ether', 'antidote', 'fuel', 'hipotion'][Math.floor(Math.random() * 6)]; bag[d] = (bag[d] || 0) + 1; drops.push(ITEMS[d].name); }
+    for (let i = 0; i < okN; i++) { const d = ['hipotion', 'ether', 'fuel', 'hipotion'][Math.floor(Math.random() * 4)]; if (!ITEMS[d]) continue; bag[d] = (bag[d] || 0) + 1; drops.push(ITEMS[d].name); }
     const ups = gainXP(xp);
     refreshStats();
     if (opts && opts.onWin) setTimeout(opts.onWin, 50);
@@ -4984,7 +5184,7 @@ function endCombat(result) {
     if (bossKey === 'warlord') { warlordAftermath(); return; }
     if (bossKey === 'beauregard') { beauAftermath(ups); return; }
     story.wins++;
-    const msg = `VICTORY! +${xp} XP, +${gold} G${drops.length ? ', found ' + drops.join(', ') : ''}. (${playerStats.xp}/${xpNeed(playerStats.lv)} to LV ${playerStats.lv + 1})`;
+    const msg = `${okN ? 'OVERKILL x' + okN + '! ' : ''}VICTORY! +${xp} XP, +${gold} G${drops.length ? ', found ' + drops.join(', ') : ''}. (${playerStats.xp}/${xpNeed(playerStats.lv)} to LV ${playerStats.lv + 1})`;
     const extra = (story.wins === 3 && learnArt('AMOR FATI')) ? [{ s: 'AMBROSE', t: "Every fight, every bruise... I wouldn't trade any of it. It's what's making me." }, artPage('AMOR FATI')] : [];
     if (ups.length || extra.length) playDialogue([{ s: 'VICTORY', t: msg }].concat(ups, extra));
     else showDialogue(msg);
@@ -5010,7 +5210,7 @@ function gainXP(x) {
 Object.assign(ART_ANIMS, {
     'ARROW RAIN'(imp) {
         hpose(800); moveActorTo(ACT.a, ACT.home.x - 1, ACT.home.z, 0.2, 1.5);
-        for (let i = 0; i < 12; i++) at(150 + i * 45, () => { const f = ALL_FOES()[i % Math.max(1, ALL_FOES().length)]; if (!f) return; const to = FPOS(f); to.x += (Math.random() - 0.5) * 1.6;
+        for (let i = 0; i < 12; i++) at(150 + i * 45, () => { const f = FX_FOES()[i % Math.max(1, FX_FOES().length)]; if (!f) return; const to = FPOS(f); to.x += (Math.random() - 0.5) * 1.6;
             projectile({ x: to.x - 3, y: to.y + 10, z: to.z }, to, 0x7dffb4, 0.25, 0, 0.6, () => { particles(to, 0x7dffb4, 4, { speed: 3 }); f.flashUntil = performance.now() + 60; }); });
         at(820, imp); at(900, () => heroHome(0.2));
     },
@@ -5039,7 +5239,7 @@ Object.assign(ART_ANIMS, {
     },
     'SPEAR CYCLONE'(imp) {
         hpose(1000); spinActor(ACT.a, 3, 0.9);
-        ALL_FOES().forEach((f, i) => at(120 + i * 220, () => { const p = FPOS(f); placeActor(ACT.a, p.x - 1.3, p.z + 0.4); afterimage(ACT.a, 0xffe0a0); ringFX(p, 0xffe0a0, 0.5, 3, 0.35, false); slashFX(p, false, 0xffe0a0); f.flashUntil = performance.now() + 80; }));
+        FX_FOES().forEach((f, i) => at(120 + i * 220, () => { const p = FPOS(f); placeActor(ACT.a, p.x - 1.3, p.z + 0.4); afterimage(ACT.a, 0xffe0a0); ringFX(p, 0xffe0a0, 0.5, 3, 0.35, false); slashFX(p, false, 0xffe0a0); f.flashUntil = performance.now() + 80; }));
         at(800, imp); at(950, () => heroHome(0.25));
     },
     'STOA THRUST'(imp) {
@@ -5072,14 +5272,14 @@ Object.assign(ART_ANIMS, {
     },
     'CANDLE OF SPINOZA'(imp) {
         hpose(1000);
-        ALL_FOES().forEach((f, i) => at(150 + i * 150, () => { const p = FPOS(f); beamFX({ x: p.x, y: GROUND, z: p.z }, 0xffe066, 12, 1.2, 0.7); fxFlash(p, 0xffe066, 5, 0.5); f.flashUntil = performance.now() + 200; }));
+        FX_FOES().forEach((f, i) => at(150 + i * 150, () => { const p = FPOS(f); beamFX({ x: p.x, y: GROUND, z: p.z }, 0xffe066, 12, 1.2, 0.7); fxFlash(p, 0xffe066, 5, 0.5); f.flashUntil = performance.now() + 200; }));
         B.party.forEach(w => { if (!w.ko) at(600, () => particles(UPOS(w), 0xffe066, 10, { speed: 2, up: 1.4, grav: -2, life: 1 })); });
         at(800, imp);
     },
     'AVALANCHE'(imp) {
         hpose(800); moveActorTo(ACT.a, ACT.home.x + 1, ACT.home.z, 0.3, 3);
         at(320, () => { triggerCameraShake(1.2); ringFX({ x: ACT.home.x + 1, y: GROUND, z: ACT.home.z }, 0xbff8ff, 0.5, 7, 0.5, true); });
-        ALL_FOES().forEach((f, i) => { for (let j = 0; j < 4; j++) at(380 + i * 90 + j * 60, () => { const to = FPOS(f); to.x += (Math.random() - 0.5) * 2; projectile({ x: to.x, y: to.y + 9, z: to.z }, to, 0xbff8ff, 0.22, 0, 0.9, () => particles(to, 0xbff8ff, 5, { speed: 4 })); }); });
+        FX_FOES().forEach((f, i) => { for (let j = 0; j < 4; j++) at(380 + i * 90 + j * 60, () => { const to = FPOS(f); to.x += (Math.random() - 0.5) * 2; projectile({ x: to.x, y: to.y + 9, z: to.z }, to, 0xbff8ff, 0.22, 0, 0.9, () => particles(to, 0xbff8ff, 5, { speed: 4 })); }); });
         at(760, imp); at(900, () => heroHome(0.25));
     },
     'GLACIER SPLIT'(imp) {
@@ -5101,7 +5301,7 @@ Object.assign(ART_ANIMS, {
     },
     "YMIR'S WRATH"(imp) {
         hpose(1100); screenTint('#eaf4ff', 0.5, 300); particles(UPOS(ACT.u), 0xffffff, 30, { speed: 6, grav: -1, life: 1.3 });
-        ALL_FOES().forEach((f, i) => at(250 + i * 140, () => {
+        FX_FOES().forEach((f, i) => at(250 + i * 140, () => {
             const p = FPOS(f), sp = new THREE.Mesh(new THREE.ConeGeometry(1.2, 7, 6), new THREE.MeshStandardMaterial({ color: 0xbff8ff, emissive: 0x2a8fd0, flatShading: true, transparent: true, opacity: 0.9 }));
             sp.position.set(p.x, -4, p.z); scene.add(sp);
             tween(0.25, k => { sp.position.y = -4 + 7.5 * k; }, () => later(400, () => tween(0.3, k => { sp.material.opacity = 0.9 * (1 - k); }, () => fxKill(sp))));
@@ -5118,7 +5318,7 @@ Object.assign(ART_ANIMS, {
     'AETHER CANNON'(imp) {
         hpose(1000); const A = UPOS(ACT.u); A.y += 1.5;
         fxFlash(A, 0x00e5ff, 5, 0.5); particles(A, 0x00e5ff, 16, { speed: 3, grav: -2 });
-        ALL_FOES().forEach((f, i) => at(350 + i * 120, () => projectile(A, FPOS(f), 0x00e5ff, 0.18, 0, 2.2, () => { fxFlash(FPOS(f), 0x9ff6ff, 7, 0.4); ringFX(FPOS(f), 0x00e5ff, 0.5, 4, 0.4, false); f.flashUntil = performance.now() + 200; triggerCameraShake(0.8); })));
+        FX_FOES().forEach((f, i) => at(350 + i * 120, () => projectile(A, FPOS(f), 0x00e5ff, 0.18, 0, 2.2, () => { fxFlash(FPOS(f), 0x9ff6ff, 7, 0.4); ringFX(FPOS(f), 0x00e5ff, 0.5, 4, 0.4, false); f.flashUntil = performance.now() + 200; triggerCameraShake(0.8); })));
         at(800, imp);
     },
     'OVERDRIVE'(imp) {
@@ -5925,7 +6125,7 @@ Object.assign(ART_ANIMS, {
         at(900, () => heroHome(0.25));
     },
     'ZERO-G RAIN'(imp) {
-        hpose(1000); const F = ALL_FOES();
+        hpose(1000); const F = FX_FOES();
         F.forEach(f => { const a = f.actor, y0 = a.mesh.position.y; tween(0.9, k => { a.mesh.position.y = y0 + 3.5 * Math.sin(Math.PI * Math.min(1, k * 1.2)); }); });
         F.forEach((f, i) => { for (let j = 0; j < 5; j++) at(250 + j * 90 + i * 40, () => { const to = FPOS(f); to.y += 2; projectile({ x: to.x + 2, y: to.y + 8, z: to.z }, to, 0xc99bff, 0.2, 0, 0.8, () => particles(to, 0xc99bff, 4, { speed: 3 }), starTex); }); });
         at(850, imp);
@@ -5939,7 +6139,7 @@ Object.assign(ART_ANIMS, {
         hpose(1200); const A = UPOS(ACT.u);
         screenTint('#000010', 0.7, 400); fxFlash(A, 0xffffff, 3, 0.6);
         at(400, () => { ringFX({ x: A.x + 4, y: GROUND, z: A.z - 2 }, 0xffffff, 1, 22, 0.8, true); ringFX({ x: A.x + 4, y: 2, z: A.z - 2 }, 0xc99bff, 1, 16, 0.7, false);
-            ALL_FOES().forEach(f => { particles(FPOS(f), 0xffffff, 18, { speed: 7, tex: starTex, size: 0.6 }); f.flashUntil = performance.now() + 300; }); screenTint('#ffffff', 0.85, 200); triggerCameraShake(1.5); });
+            FX_FOES().forEach(f => { particles(FPOS(f), 0xffffff, 18, { speed: 7, tex: starTex, size: 0.6 }); f.flashUntil = performance.now() + 300; }); screenTint('#ffffff', 0.85, 200); triggerCameraShake(1.5); });
         at(800, imp);
     }
 });
@@ -6110,7 +6310,7 @@ function updateMinimap() {
 function updateBiomeLocationText() {
     if (currentRoom) { $('location-name').innerText = `INTERIOR: ${currentRoom.title}`; return; }
     if (currentZone) { $('location-name').innerText = `AREA: ${currentZone.name}${CONTROL ? ' (' + CONTROL.keys.map(k => k.toUpperCase()).join(' & ') + ')' : ''}`; return; }
-    const names = { village: 'VALKORA VILLAGE (HOME)', desert: 'AETHER DESERT', forest: 'SYLVAN FOREST', crags: 'OBSIDIAN CRAGS', snow: 'FROZEN SPIRES' };
+    const names = { village: 'VALKORA VILLAGE (HOME)', desert: 'AETHER DESERT', forest: 'SYLVAN FOREST', crags: 'OBSIDIAN CRAGS', snow: 'FROZEN SPIRES', bloom: 'THE BLOOMING WILDS', jungle: 'THE VERDANT DEEP', volcanic: 'THE ASHEN REACHES', savanna: 'THE GOLDEN SAVANNA', canyon: 'THE RED CANYONLANDS', tundra: 'THE AURORA TUNDRA' };
     const p = hero.mesh.position;
     const place = PLACES.find(pl => Math.hypot(p.x - pl.x, p.z - pl.z) < pl.r);
     $('location-name').innerText = `REGION: AETHELGARD - ${place ? place.name : names[regionAt(p.x, p.z)]}`;
@@ -6153,10 +6353,10 @@ function updateWorld(dt) {
     updateFollowers(dt);
     updateZoneFoes(dt);
     const reg = inCombat ? CUR_STAGE.key : CS.on && !currentZone ? 'village' : currentRoom ? 'interior' : currentZone ? currentZone.biome : regionAt(p.x, p.z);
-    updateDrift(drifts.snow, time, p.x, p.z, gy, reg === 'snow' ? 0.95 : 0);
-    updateDrift(drifts.dust, time, p.x, p.z, gy, reg === 'desert' ? 0.4 : 0);
-    updateDrift(drifts.embers, time, p.x, p.z, gy, reg === 'crags' ? 0.9 : 0);
-    updateDrift(drifts.flies, time, p.x, p.z, gy, reg === 'forest' ? 0.95 : 0);
+    updateDrift(drifts.snow, time, p.x, p.z, gy, reg === 'snow' || reg === 'tundra' ? 0.95 : 0);
+    updateDrift(drifts.dust, time, p.x, p.z, gy, reg === 'desert' || reg === 'canyon' ? 0.4 : reg === 'savanna' ? 0.3 : 0);
+    updateDrift(drifts.embers, time, p.x, p.z, gy, reg === 'crags' || reg === 'volcanic' ? 0.9 : 0);
+    updateDrift(drifts.flies, time, p.x, p.z, gy, reg === 'forest' || reg === 'jungle' || reg === 'bloom' ? 0.95 : 0);
 }
 
 const _pos = { x: 0, z: 0 };
@@ -7529,7 +7729,7 @@ Object.assign(ART_ANIMS, {
         hpose(1300);
         LIVE_PARTY().forEach(w => { const p = UPOS(w); ringFX({ x: p.x, y: GROUND + 0.1, z: p.z }, 0x9ff6ff, 0.5, 3.4, 0.6, true); beamFX({ x: p.x, y: GROUND, z: p.z }, 0x00e5ff, 6, 2.6, 0.7); });
         screenTint('#00e5ff', 0.18, 300);
-        ALL_FOES().forEach((f, i) => at(500 + i * 130, () => { const T = FPOS(f); projectile(gUP(), T, 0x9ff6ff, 0.2, 0.2, 1.4, () => { slashFX(T, true, 0x00e5ff); f.flashUntil = performance.now() + 200; triggerCameraShake(0.6); }); }));
+        FX_FOES().forEach((f, i) => at(500 + i * 130, () => { const T = FPOS(f); projectile(gUP(), T, 0x9ff6ff, 0.2, 0.2, 1.4, () => { slashFX(T, true, 0x00e5ff); f.flashUntil = performance.now() + 200; triggerCameraShake(0.6); }); }));
         at(1000, imp);
     },
     "FATHER'S EDGE"(imp) {
@@ -7551,7 +7751,7 @@ Object.assign(ART_ANIMS, {
     'FEATHER STORM'(imp) {
         hpose(1300); const A = gUP();
         particles(A, 0x7cc08a, 30, { speed: 6, grav: -1 });
-        ALL_FOES().forEach((f, i) => { for (let j = 0; j < 5; j++) at(250 + j * 110 + i * 50, () => { const T = FPOS(f); T.x += (Math.random() - 0.5) * 1.4; T.y += (Math.random() - 0.5) * 1.4; projectile({ x: A.x + (Math.random() - 0.5) * 3, y: A.y + Math.random() * 2, z: A.z }, T, j % 2 ? 0xc9ff7a : 0x7cc08a, 0.28, 1.2, 0.5, () => { f.flashUntil = performance.now() + 80; particles(T, 0x7cc08a, 4, { speed: 3 }); }); }); });
+        FX_FOES().forEach((f, i) => { for (let j = 0; j < 5; j++) at(250 + j * 110 + i * 50, () => { const T = FPOS(f); T.x += (Math.random() - 0.5) * 1.4; T.y += (Math.random() - 0.5) * 1.4; projectile({ x: A.x + (Math.random() - 0.5) * 3, y: A.y + Math.random() * 2, z: A.z }, T, j % 2 ? 0xc9ff7a : 0x7cc08a, 0.28, 1.2, 0.5, () => { f.flashUntil = performance.now() + 80; particles(T, 0x7cc08a, 4, { speed: 3 }); }); }); });
         at(1050, imp);
     },
     'SKYLANCE ARROW'(imp) {
@@ -7570,7 +7770,7 @@ Object.assign(ART_ANIMS, {
     },
     'LANCE VOLLEY'(imp) {
         hpose(1300);
-        ALL_FOES().forEach((f, i) => { for (let j = 0; j < 3; j++) at(300 + j * 160 + i * 70, () => { const T = FPOS(f); projectile(SKY_AT(T, 16), T, 0xff8a3a, 0.35, 0, 0.6, () => { ringFX({ x: T.x, y: GROUND + 0.1, z: T.z }, 0xff8a3a, 0.3, 2.4, 0.3, true); particles(T, 0xe0a060, 8, { speed: 5, grav: 8 }); f.flashUntil = performance.now() + 120; triggerCameraShake(0.5); }); }); });
+        FX_FOES().forEach((f, i) => { for (let j = 0; j < 3; j++) at(300 + j * 160 + i * 70, () => { const T = FPOS(f); projectile(SKY_AT(T, 16), T, 0xff8a3a, 0.35, 0, 0.6, () => { ringFX({ x: T.x, y: GROUND + 0.1, z: T.z }, 0xff8a3a, 0.3, 2.4, 0.3, true); particles(T, 0xe0a060, 8, { speed: 5, grav: 8 }); f.flashUntil = performance.now() + 120; triggerCameraShake(0.5); }); }); });
         at(1150, imp);
     },
     'THERMOPYLAE'(imp) {
@@ -7594,14 +7794,14 @@ Object.assign(ART_ANIMS, {
         hpose(1500); const A = gUP();
         const wisps = []; for (let i = 0; i < 6; i++) wisps.push(fxFlash(A, 0xb8ffd8, 1.6, 0.9));
         tween(0.7, k => wisps.forEach((s, i) => { const t = k * 6 + i; s.position.set(A.x + Math.cos(t) * 2.4, A.y + Math.sin(t * 1.3) * 0.8, A.z + Math.sin(t) * 2.4); }));
-        ALL_FOES().forEach((f, i) => at(750 + i * 140, () => { const T = FPOS(f); projectile({ x: A.x, y: A.y + 1, z: A.z }, T, 0xb8ffd8, 0.4, 2.6, 1, () => { fxFlash(T, 0x7dffb4, 5, 0.4); f.flashUntil = performance.now() + 160; projectile(T, gUP(), 0x5aff9a, 0.5, 1.5, 0.4); }); }));
+        FX_FOES().forEach((f, i) => at(750 + i * 140, () => { const T = FPOS(f); projectile({ x: A.x, y: A.y + 1, z: A.z }, T, 0xb8ffd8, 0.4, 2.6, 1, () => { fxFlash(T, 0x7dffb4, 5, 0.4); f.flashUntil = performance.now() + 160; projectile(T, gUP(), 0x5aff9a, 0.5, 1.5, 0.4); }); }));
         at(1300, imp);
     },
     'GREAT LIGHTHOUSE'(imp) {
         hpose(1800); const A = gUP(), a = ACT.a, y0 = a.mesh.position.y;
         tween(0.5, k => { a.mesh.position.y = y0 + 3 * k; });
         at(450, () => { screenTint('#fff6c8', 0.35, 500); beamFX({ x: A.x, y: GROUND, z: A.z }, 0xfff6c8, 30, 3.5, 1.2); fxFlash({ x: A.x, y: A.y + 3, z: A.z }, 0xffffff, 16, 0.9); });
-        ALL_FOES().forEach((f, i) => at(800 + i * 150, () => { const T = FPOS(f); beamFX({ x: T.x, y: GROUND, z: T.z }, 0xfff6c8, 16, 2, 0.6); fxFlash(T, 0xffffff, 8, 0.4); f.flashUntil = performance.now() + 220; }));
+        FX_FOES().forEach((f, i) => at(800 + i * 150, () => { const T = FPOS(f); beamFX({ x: T.x, y: GROUND, z: T.z }, 0xfff6c8, 16, 2, 0.6); fxFlash(T, 0xffffff, 8, 0.4); f.flashUntil = performance.now() + 220; }));
         at(1300, () => { LIVE_PARTY().forEach(w => { const p = UPOS(w); ringFX({ x: p.x, y: GROUND + 0.1, z: p.z }, 0x7dffb4, 0.4, 3, 0.6, true); particles(p, 0x7dffb4, 12, { speed: 3, grav: -3 }); }); imp(); });
         at(1500, () => tween(0.3, k => { a.mesh.position.y = y0 + 3 * (1 - k); }));
     },
@@ -7615,7 +7815,7 @@ Object.assign(ART_ANIMS, {
         hpose(1300); const a = ACT.a, y0 = a.mesh.position.y, A = UPOS(ACT.u);
         tween(0.25, k => { a.mesh.position.y = y0 + 2 * Math.sin(Math.PI * k); });
         at(260, () => { triggerCameraShake(1.6); camPunch(3, 0.3); ringFX({ x: A.x + 2, y: GROUND + 0.1, z: A.z }, 0x9fe8ff, 1, 22, 0.9, true); screenTint('#bff8ff', 0.3, 260); });
-        ALL_FOES().forEach((f, i) => at(500 + i * 110, () => { const T = FPOS(f); beamFX({ x: T.x, y: GROUND, z: T.z }, 0x9fe8ff, 5, 1.6, 0.6); particles({ x: T.x, y: GROUND + 1, z: T.z }, 0xeaf4ff, 18, { speed: 6, grav: 6 }); f.flashUntil = performance.now() + 250; }));
+        FX_FOES().forEach((f, i) => at(500 + i * 110, () => { const T = FPOS(f); beamFX({ x: T.x, y: GROUND, z: T.z }, 0x9fe8ff, 5, 1.6, 0.6); particles({ x: T.x, y: GROUND + 1, z: T.z }, 0xeaf4ff, 18, { speed: 6, grav: 6 }); f.flashUntil = performance.now() + 250; }));
         at(1000, imp);
     },
     'HOARFROST GUILLOTINE'(imp) {
@@ -7636,7 +7836,7 @@ Object.assign(ART_ANIMS, {
     },
     'STARFALL'(imp) {
         hpose(1400); screenTint('#05061a', 0.45, 700);
-        ALL_FOES().forEach((f, i) => { for (let j = 0; j < 4; j++) at(250 + j * 150 + i * 60, () => { const T = FPOS(f); T.x += (Math.random() - 0.5) * 2; projectile({ x: T.x + 6, y: T.y + 14, z: T.z - 2 }, T, 0x9fd2ff, 0.4, 0, 1.2, () => { fxFlash(T, 0xffffff, 4, 0.3); ringFX(T, 0x9fd2ff, 0.3, 2.6, 0.3, false); particles(T, 0x9fd2ff, 8, { speed: 5, tex: starTex, size: 0.6 }); f.flashUntil = performance.now() + 100; triggerCameraShake(0.4); }, starTex); }); });
+        FX_FOES().forEach((f, i) => { for (let j = 0; j < 4; j++) at(250 + j * 150 + i * 60, () => { const T = FPOS(f); T.x += (Math.random() - 0.5) * 2; projectile({ x: T.x + 6, y: T.y + 14, z: T.z - 2 }, T, 0x9fd2ff, 0.4, 0, 1.2, () => { fxFlash(T, 0xffffff, 4, 0.3); ringFX(T, 0x9fd2ff, 0.3, 2.6, 0.3, false); particles(T, 0x9fd2ff, 8, { speed: 5, tex: starTex, size: 0.6 }); f.flashUntil = performance.now() + 100; triggerCameraShake(0.4); }, starTex); }); });
         at(1150, imp);
     },
     'EVENT HORIZON'(imp) {
@@ -7656,7 +7856,7 @@ Object.assign(ART_ANIMS, {
         hpose(1400); const A = UPOS(ACT.u);
         screenTint('#ff4a2e', 0.25, 500);
         for (let i = 0; i < 5; i++) at(i * 140, () => ringFX({ x: A.x + 2, y: GROUND + 0.1, z: A.z }, i % 2 ? 0xff8a30 : 0xff4a2e, 1 + i * 3, 4 + i * 4, 0.6, true));
-        ALL_FOES().forEach((f, i) => at(450 + i * 120, () => { const T = FPOS(f); beamFX({ x: T.x, y: GROUND, z: T.z }, 0xff8a30, 7, 2, 0.8); for (let k = 0; k < 4; k++) at(k * 110, () => particles({ x: T.x, y: GROUND + 0.5, z: T.z }, k % 2 ? 0xff8a30 : 0xffd27a, 10, { speed: 3, grav: -6, life: 0.9 })); f.flashUntil = performance.now() + 300; }));
+        FX_FOES().forEach((f, i) => at(450 + i * 120, () => { const T = FPOS(f); beamFX({ x: T.x, y: GROUND, z: T.z }, 0xff8a30, 7, 2, 0.8); for (let k = 0; k < 4; k++) at(k * 110, () => particles({ x: T.x, y: GROUND + 0.5, z: T.z }, k % 2 ? 0xff8a30 : 0xffd27a, 10, { speed: 3, grav: -6, life: 0.9 })); f.flashUntil = performance.now() + 300; }));
         at(1100, () => { triggerCameraShake(1.2); imp(); });
     },
     'IRON TYRANT'(imp) {
@@ -7675,7 +7875,7 @@ Object.assign(ART_ANIMS, {
         at(650, () => heroHome(0.25));
     },
     'BLADE DANCE'(imp) {
-        hpose(1500); const a = ACT.a, F = ALL_FOES();
+        hpose(1500); const a = ACT.a, F = FX_FOES();
         F.forEach((f, i) => at(150 + i * 300, () => { const T = FPOS(f); afterimage(a, 0xff3b30, 0.5); placeActor(a, T.x - 1.6, T.z + 0.4); at(90, () => { slashFX(T, true, i % 2 ? 0xffb0a8 : 0xff3b30); particles(T, 0xff3b30, 12, { speed: 6 }); f.flashUntil = performance.now() + 160; triggerCameraShake(0.7); }); }));
         at(150 + F.length * 300, () => { screenTint('#ff3b30', 0.25, 160); imp(); });
         at(400 + F.length * 300, () => heroHome(0.3));
@@ -7742,7 +7942,7 @@ function gearCutIn(u) {
 }
 function gearImpact(u, combo, finisher) {
     const c = GEAR_COLOR[u.key] || 0xffffff;
-    const spots = combo.tgt === 'all' ? ALL_FOES().map(FPOS) : [EPOS()];
+    const spots = combo.tgt === 'all' ? FX_FOES().map(FPOS) : [EPOS()];
     spots.forEach(E => {
         shockSphere(E, c, finisher ? 7 : 4, finisher ? 0.7 : 0.45);
         speedLines(E, finisher ? 0xffffff : c, finisher ? 22 : 12);
@@ -7754,7 +7954,7 @@ function gearImpact(u, combo, finisher) {
 const hx = c => '#' + c.toString(16).padStart(6, '0');
 const GX = {       // reusable choreography, tinted per gear; every one calls imp() exactly once
     meteor(imp, c1, c2, all) {
-        hpose(1700); const T = all ? ALL_FOES().map(FPOS) : [EPOS()], S = gUP();
+        hpose(1700); const T = all ? FX_FOES().map(FPOS) : [EPOS()], S = gUP();
         beamFX({ x: S.x, y: GROUND, z: S.z }, c1, 14, 1.4, 0.6); fxFlash(S, c2, 6, 0.4); screenTint('#000000', 0.35, 400);
         T.forEach((E, i) => at(450 + i * 160, () => projectile(SKY_AT(E, 16), E, c1, 0.35, 0, 2.2, () => {
             fxFlash(E, 0xffffff, 12, 0.5); fxFlash(E, c1, 16, 0.8); ringFX({ x: E.x, y: GROUND + 0.1, z: E.z }, c2, 1, 10, 0.7, true);
@@ -7762,18 +7962,18 @@ const GX = {       // reusable choreography, tinted per gear; every one calls im
         at(900 + T.length * 160, imp);
     },
     barrage(imp, c1, c2, all) {
-        hpose(1500); const T = all ? ALL_FOES().map(FPOS) : [EPOS()];
+        hpose(1500); const T = all ? FX_FOES().map(FPOS) : [EPOS()];
         for (let i = 0; i < 14; i++) at(i * 65, () => { const E = T[i % T.length]; projectile(gUP(), { x: E.x + (Math.random() - 0.5) * 1.4, y: E.y + (Math.random() - 0.5), z: E.z }, i % 2 ? c1 : c2, 0.3, 2 + Math.random() * 2, 0.6, () => { fxFlash(E, c1, 3, 0.25); particles(E, c2, 5, { speed: 6 }); triggerCameraShake(0.35); }); });
         at(1100, () => { T.forEach(E => { fxFlash(E, 0xffffff, 9, 0.4); ringFX(E, c1, 0.6, 7, 0.5, false); }); camPunch(3, 0.25); eflash(200); imp(); });
     },
     blink(imp, c1, c2, all) {
-        hpose(1700); const a = ACT.a, T = all ? ALL_FOES().map(FPOS) : [EPOS()];
+        hpose(1700); const a = ACT.a, T = all ? FX_FOES().map(FPOS) : [EPOS()];
         for (let i = 0; i < 6; i++) at(120 + i * 140, () => { const E = T[i % T.length], ang = i * 2.1; afterimage(a, c1, 0.4); placeActor(a, E.x + Math.cos(ang) * 2, E.z + Math.sin(ang) * 1.2); slashFX(E, i === 5, i % 2 ? c1 : c2); particles(E, c2, 10, { speed: 7 }); triggerCameraShake(0.6); });
         at(1000, () => { T.forEach(E => { fxFlash(E, c1, 13, 0.6); ringFX(E, c2, 0.6, 9, 0.6, false); }); screenTint(hx(c1), 0.35, 200); camPunch(5, 0.3); eflash(260); imp(); });
         at(1350, () => heroHome(0.3));
     },
     nova(imp, c1, c2, all) {
-        hpose(1600); const P = gUP(), T = all ? ALL_FOES().map(FPOS) : [EPOS()];
+        hpose(1600); const P = gUP(), T = all ? FX_FOES().map(FPOS) : [EPOS()];
         gatherEnergy(P, c1); ringFX({ x: P.x, y: GROUND + 0.1, z: P.z }, c2, 6, 0.5, 0.5, true);
         at(500, () => { shockSphere(P, c1, 3, 0.4); fxFlash(P, 0xffffff, 6, 0.3); });
         at(800, () => { screenTint(hx(c1), 0.4, 300); shockSphere({ x: (P.x + T[0].x) / 2, y: P.y, z: (P.z + T[0].z) / 2 }, c1, 14, 0.8);
@@ -7787,14 +7987,14 @@ const GX = {       // reusable choreography, tinted per gear; every one calls im
         at(1300, () => heroHome(0.3));
     },
     pillar(imp, c1, c2, all) {
-        hpose(1700); const T = all ? ALL_FOES().map(FPOS) : [EPOS()], P = gUP();
+        hpose(1700); const T = all ? FX_FOES().map(FPOS) : [EPOS()], P = gUP();
         beamFX({ x: P.x, y: GROUND, z: P.z }, c2, 8, 1.2, 0.5); ringFX({ x: P.x, y: GROUND + 0.1, z: P.z }, c1, 0.5, 5, 0.5, true);
         T.forEach((E, i) => { at(300 + i * 120, () => ringFX({ x: E.x, y: GROUND + 0.1, z: E.z }, c1, 3, 0.5, 0.45, true));
             at(700 + i * 120, () => { beamFX({ x: E.x, y: GROUND, z: E.z }, c1, 22, 2.6, 0.9); beamFX({ x: E.x, y: GROUND, z: E.z }, 0xffffff, 22, 1.0, 0.6); particles(E, c2, 36, { speed: 10, up: 1.4, grav: 2 }); debris({ x: E.x, y: GROUND + 0.6, z: E.z }, 0x5a5a66, 6); triggerCameraShake(1.4); }); });
         at(900 + T.length * 120, () => { screenTint(hx(c1), 0.3, 220); camPunch(4, 0.3); imp(); });
     },
     orbitals(imp, c1, c2, all) {
-        hpose(1800); const T = all ? ALL_FOES().map(FPOS) : [EPOS()], P = gUP();
+        hpose(1800); const T = all ? FX_FOES().map(FPOS) : [EPOS()], P = gUP();
         for (let i = 0; i < 10; i++) at(i * 105, () => { const E = T[i % T.length], from = { x: P.x - 3 + Math.random() * 2, y: P.y + 10 + Math.random() * 4, z: P.z - 2 }; projectile(from, E, i % 3 ? c1 : c2, 0.45, 3, 1.0, () => { fxFlash(E, c1, 5, 0.3); ringFX(E, c2, 0.4, 4, 0.35, false); triggerCameraShake(0.5); }); });
         at(1250, () => { T.forEach(E => { fxFlash(E, 0xffffff, 10, 0.5); particles(E, c1, 26, { speed: 11 }); }); camPunch(4, 0.3); imp(); });
     }
