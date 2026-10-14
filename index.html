@@ -459,13 +459,13 @@ function mkCanvas(w, h) {
 // ==========================================
 // 1. WORLD DATA: layout, roads, landmarks, items, NPCs
 // ==========================================
-const terrainSize = 800;
-const terrainSegments = 320;
+const terrainSize = 960;
+const terrainSegments = 360;
 const WORLD_LIMIT = 224;      // the south coast (Valkora Pier side) stays exactly where it was
-const WORLD_E = 360, WORLD_W = 360, WORLD_N = 360, WORLD_S = WORLD_LIMIT;      // the island now reaches much further east, west and north
+const WORLD_E = 440, WORLD_W = 440, WORLD_N = 440, WORLD_S = WORLD_LIMIT;      // the island now reaches much further east, west and north
 const edgeOf = (x, z) => Math.max(x > 0 ? x - (WORLD_E - 224) : -x - (WORLD_W - 224), z > 0 ? z : -z - (WORLD_N - 224));   // what the coastline is shaped from
 const isFrontier = (x, z) => x > 236 || x < -236 || z < -236;                  // past the old coastline: the Frontier
-const SCATTER_K = (WORLD_W + WORLD_E) * (WORLD_N + WORLD_S) / (448 * 448);       // keeps scenery as dense as it was on the small map
+const SCATTER_K = 2.1;      // the old biomes keep their density; the Frontier gets its own, richer flora below
 const SEA_Y = -1.4;
 const INTERIOR_X = 2000;      // interiors are built far east of the island, out of sight
 
@@ -726,6 +726,24 @@ Object.assign(TEXTS, {
 });
 TABLETS.push({ x: ASHFORD.x - 2, z: ASHFORD.z + 22, key: 'milton' }, { x: MAW.x + 14, z: MAW.z + 14, key: 'inferno' }, { x: WHITE.x - 14, z: WHITE.z + 14, key: 'mariner' },
     { x: DUNES.x - 16, z: DUNES.z + 12, key: 'ozymandias' }, { x: ELDER.x + 16, z: ELDER.z + 12, key: 'walking' });
+
+// ---------- THE FAR FRONTIER: four wonders past the first Frontier ----------
+const VALE = { x: -405, z: 125 }, SUNSPIRE = { x: 400, z: 150 }, BASALT = { x: -185, z: -398 }, AURORA = { x: 360, z: -398 };
+ROADS.push([[-294, 102], [-340, 110], [-380, 120], [-392, 124]], [[290, 88], [330, 110], [370, 138], [388, 146]],
+    [[-52, -286], [-100, -330], [-150, -380], [-174, -392]], [[290, -290], [320, -340], [345, -380], [352, -390]]);
+ROAD_SIGNS.push("THE BLOOMING VALE: a waterfall, a rainbow, and more flowers than anyone has counted.", "SUNSPIRE CANYON: stone arches older than the sea. The crystal hums at noon.",
+    "THE BASALT SEA: the ground is made of columns. Do not touch the orange rivers.", "THE AURORA FIELDS: under the lights, the ice sings back.");
+SIGN_AT.push(26, 26, 26, 26);
+PADS.push({ x: VALE.x, z: VALE.z, r: 26, h: 0.4 }, { x: SUNSPIRE.x, z: SUNSPIRE.z, r: 26, h: 0.5 }, { x: BASALT.x, z: BASALT.z, r: 24, h: 1.4 }, { x: AURORA.x, z: AURORA.z, r: 28, h: 0.8 });
+PAVE.push({ x: VALE.x, z: VALE.z, r0: 12, r1: 22, c: 0x5fbf4a, k: 0.7 }, { x: SUNSPIRE.x, z: SUNSPIRE.z, r0: 12, r1: 22, c: 0xd9935a, k: 0.75 },
+    { x: BASALT.x, z: BASALT.z, r0: 12, r1: 22, c: 0x22222a, k: 0.85 }, { x: AURORA.x, z: AURORA.z, r0: 12, r1: 24, c: 0xcfeaff, k: 0.8 });
+PLACES.push({ x: VALE.x, z: VALE.z, r: 30, name: 'THE BLOOMING VALE' }, { x: SUNSPIRE.x, z: SUNSPIRE.z, r: 30, name: 'SUNSPIRE CANYON' },
+    { x: BASALT.x, z: BASALT.z, r: 28, name: 'THE BASALT SEA' }, { x: AURORA.x, z: AURORA.z, r: 32, name: 'THE AURORA FIELDS' });
+hiddenItemsList.push(
+    { id: 17, name: "Bloom Drive", type: "HP_BOOST", val: 350, x: VALE.x - 10, z: VALE.z + 24, found: false, desc: "+350 Permanent Max HP" },
+    { id: 18, name: "Sunspire Drive", type: "ATK_BOOST", val: 30, x: SUNSPIRE.x + 22, z: SUNSPIRE.z + 20, found: false, desc: "+30 Permanent Attack Power" },
+    { id: 19, name: "Basalt Drive", type: "DEF_BOOST", val: 30, x: BASALT.x - 22, z: BASALT.z - 18, found: false, desc: "+30 Permanent Armor Defense" },
+    { id: 20, name: "Aurora Drive", type: "EP_BOOST", val: 30, x: AURORA.x + 24, z: AURORA.z + 22, found: false, desc: "+30 Permanent EP Capacity" });
 
 const signList = [];      // readable roadside signposts (filled while building the world)
 const KEEP_CLEAR = [];    // spots scenery must not cover
@@ -2804,6 +2822,156 @@ const drifts = {
         for (let i = 0; i < 10; i++) { const x = X + rr(-14, 14), z = Z + rr(-18, 10), gl = makeGlow(x, groundAt(x, z) + 2, z, 0xb8ffd8, 1.2, 0.3), ph = rand() * 6; animated.push(t => { gl.position.y = groundAt(x, z) + 2 + Math.sin(t + ph) * 0.8; }); }
         outdoorNPC({ name: 'Warden Fennick', x: X + 7, z: Z + 10, look: 'v2', lines: ["These trees were old when the first boat reached Aethelgard.",
             "The Elder Treant guards the heart of the wood. It doesn't hate you. It just has a very long memory, and a very short patience."] });
+    })();
+})();
+
+// ---------- A LIVING FRONTIER: every far biome gets its own plants, animals, light and water ----------
+(function buildWildFrontier() {
+    const FR = {
+        forest: (x, z) => inForest(x, z) && isFrontier(x, z), desert: (x, z) => inDesert(x, z) && isFrontier(x, z),
+        crags: (x, z) => inCrags(x, z) && isFrontier(x, z), snow: (x, z) => inSnow(x, z) && isFrontier(x, z)
+    };
+    const S = (n, region, o) => scatter(n, region, Object.assign({ local: true }, o));
+    const glossy = c => new THREE.MeshStandardMaterial({ color: c, vertexColors: true, roughness: 0.15, metalness: 0.6, flatShading: true });
+    const iceMat = new THREE.MeshStandardMaterial({ color: 0xcff2ff, roughness: 0.1, metalness: 0.1, transparent: true, opacity: 0.82, flatShading: true, emissive: 0x2a6a90, emissiveIntensity: 0.25 });
+    const flower = (petal, center) => mergeGeos([[gCyl(0.04, 0.05, 0.7, 4, 0, 0.35, 0), 0x3f8a36], [gBox(0.42, 0.12, 0.42, 0, 0.72, 0), petal], [gBox(0.14, 0.14, 0.14, 0, 0.8, 0), center || 0xfff3b0]]);
+    const meadow = (region, cols, n) => cols.forEach(c => instanced(flower(c), matProp, S(n, region, { solo: false, smin: 0.8, smax: 1.5 }), false));
+
+    // ===== FAR FOREST: redwoods, birches, ferns, glowing mushrooms, wildflower meadows, mossy stones =====
+    const redwood = mergeGeos([[gCyl(0.6, 0.95, 9, 7, 0, 4.5, 0), 0x6a3a22], [gCone(3.3, 5, 8, 0, 9.2, 0), 0x1f5a2e], [gCone(2.7, 4.6, 8, 0, 11.8, 0), 0x2a6a36], [gCone(1.9, 4, 8, 0, 14.2, 0), 0x347a3e]]);
+    const reds = S(90, FR.forest, { gap: 5, rad: 2.2, smin: 0.9, smax: 1.6 }); instanced(redwood, matProp, reds, true); solidify(reds, 0.9);
+    const birch = mergeGeos([[gCyl(0.24, 0.32, 6.4, 6, 0, 3.2, 0), 0xece8de], [gBox(0.34, 0.12, 0.34, 0, 2.2, 0), 0x2a2a2a], [gBox(0.34, 0.12, 0.34, 0, 4.1, 0), 0x2a2a2a], [gIco(2.1, 0, 0, 7, 0), 0xc8e05a], [gIco(1.5, 0, 0.9, 6.2, 0.4), 0xa8d04a]]);
+    const birches = S(80, FR.forest, { gap: 4, rad: 1.4, smin: 0.8, smax: 1.3 }); instanced(birch, matProp, birches, true); solidify(birches, 0.4);
+    const fern = mergeGeos([0, 1, 2, 3, 4].map(i => { const g = new THREE.ConeGeometry(0.5, 1.8, 3); g.translate(0, 0.9, 0); g.rotateZ(0.9); g.rotateY(i * 1.26); return [g, i % 2 ? 0x3f8a3a : 0x5aa64a]; }));
+    instanced(fern, matProp, S(260, FR.forest, { solo: false, smin: 0.7, smax: 1.4 }), false);
+    const shroom = mergeGeos([[gCyl(0.12, 0.16, 0.8, 6, 0, 0.4, 0), 0xf0f0e8], [gCone(0.55, 0.45, 8, 0, 0.95, 0), 0x5ff3ff], [gCyl(0.1, 0.13, 0.6, 6, 0.6, 0.3, 0.2), 0xf0f0e8], [gCone(0.4, 0.35, 8, 0.6, 0.7, 0.2), 0x9a7aff]]);
+    const shrooms = S(110, FR.forest, { gap: 1.5, rad: 0.5, smin: 0.8, smax: 1.8 }); instanced(shroom, matLit, shrooms, false);
+    shrooms.filter((_, i) => i % 6 === 0).forEach(p => makeGlow(p.x, p.y + 1, p.z, 0x5ff3ff, 2.4, 0.2));
+    rockInst(S(40, FR.forest, { gap: 3, rad: 1.3, smin: 1, smax: 2.2 }), 0x5a7a4a);
+    meadow(FR.forest, [0xff9ad8, 0xc99bff, 0xfff06a, 0xffffff, 0xff7a5a], 160);
+
+    // ===== FAR DESERT: hoodoos, saguaro forests, barrel cacti, glowing crystals, desert blooms =====
+    const hoodoo = mergeGeos([[gCyl(1.6, 2.0, 3, 7, 0, 1.5, 0), 0xb5603a], [gCyl(1.2, 1.5, 3, 7, 0, 4.4, 0), 0xd08a55], [gCyl(0.9, 1.1, 2.6, 7, 0, 7.1, 0), 0xc2734a], [gCyl(1.8, 1.2, 0.9, 7, 0, 8.8, 0), 0x8a4a2a]]);
+    const hoods = S(60, FR.desert, { gap: 6, rad: 2.2, smin: 0.8, smax: 1.7 }); instanced(hoodoo, matProp, hoods, true); solidify(hoods, 1.6);
+    const sag = S(110, FR.desert, { gap: 4, rad: 1, smin: 1, smax: 1.8 }); instanced(cactusGeo(0x3f8f4f), matProp, sag, true); solidify(sag, 0.5);
+    instanced(mergeGeos([[gIco(0.7, 0, 0, 0.6, 0), 0x4fa05a], [gCone(0.22, 0.4, 5, 0, 1.35, 0), 0xff6ad5]]), matProp, S(120, FR.desert, { solo: false, smin: 0.8, smax: 1.5 }), false);
+    const crys = mergeGeos([[gCone(0.5, 3, 5, 0, 1.5, 0), 0xff7ad8], [gCone(0.35, 2.2, 5, 0.6, 1.0, 0.2), 0x5ff3ff], [gCone(0.3, 1.8, 5, -0.5, 0.9, -0.2), 0xffd27a]]);
+    const crystals = S(40, FR.desert, { gap: 5, rad: 1, smin: 0.8, smax: 1.8 }); instanced(crys, matLit, crystals, false);
+    crystals.filter((_, i) => i % 4 === 0).forEach(p => makeGlow(p.x, p.y + 1.5, p.z, 0xff7ad8, 3, 0.25));
+    meadow(FR.desert, [0xff8a3a, 0xc26ad8, 0xffe06a], 90);
+
+    // ===== FAR CRAGS: basalt columns, obsidian spires, ash trees with embers, fire flowers, geysers =====
+    const hex = new THREE.CylinderGeometry(1, 1, 1, 6); hex.translate(0, 0.5, 0);
+    const cols = S(260, FR.crags, { gap: 1.8, rad: 1.0, smin: 0.9, smax: 1.4 }); cols.forEach(p => { p.sx = p.sz = p.s; p.sy = 1 + Math.random() * 6; p.r = 0; }); instanced(hex, rockMat(0x2a2a32), cols, true);
+    const spire = mergeGeos([[gCone(1.3, 9, 5, 0, 4.5, 0), 0x0e0e14], [gCone(0.7, 5, 5, 1.2, 2.5, 0.4), 0x1a1a24]]);
+    const spires = S(50, FR.crags, { gap: 6, rad: 1.6, smin: 0.8, smax: 1.8 }); instanced(spire, glossy(0xffffff), spires, true); solidify(spires, 1);
+    const ash = S(60, FR.crags, { gap: 5, rad: 1.4, smin: 0.9, smax: 1.4 }); instanced(deadTreeGeo(0x3a3030), matProp, ash, true);
+    ash.filter((_, i) => i % 3 === 0).forEach(p => makeGlow(p.x, p.y + 3.5 * p.s, p.z, 0xff6a1a, 1.8, 0.5));
+    meadow(FR.crags, [0xff5a1a, 0xffb84d], 70);
+    S(10, FR.crags, { gap: 20, rad: 2 }).forEach(p => { addSmoke(p.x, p.y + 0.5, p.z); makeGlow(p.x, p.y + 0.4, p.z, 0xffa040, 3, 0.4); });
+
+    // ===== FAR SNOW: frosted pines, ice-crystal trees, blue snowbells, frozen ponds =====
+    const fp = S(140, FR.snow, { gap: 3.5, rad: 1.4, smin: 1, smax: 1.9 }); instanced(treePine(0x2f6f5a, 0xffffff), matProp, fp, true); solidify(fp, 0.35);
+    const icetree = mergeGeos([[gCyl(0.3, 0.45, 3, 6, 0, 1.5, 0), 0xbfeaff], [new THREE.OctahedronGeometry(2, 0).scale(1, 1.8, 1).translate(0, 5.2, 0), 0xdff6ff], [new THREE.OctahedronGeometry(1.1, 0).scale(1, 1.6, 1).translate(1.2, 3.8, 0.3), 0xbfeaff]]);
+    const its = S(70, FR.snow, { gap: 4, rad: 1.4, smin: 0.8, smax: 1.5 }); instanced(icetree, iceMat, its, true); solidify(its, 0.5);
+    its.filter((_, i) => i % 5 === 0).forEach(p => makeGlow(p.x, p.y + 5, p.z, 0x9fe8ff, 3.4, 0.15));
+    meadow(FR.snow, [0x9fd2ff, 0xffffff, 0xc9b8ff], 80);
+    const pondMat = new THREE.MeshStandardMaterial({ color: 0x9fd8f0, roughness: 0.05, metalness: 0.3 });
+    S(6, FR.snow, { gap: 18, rad: 7 }).forEach(p => { const m = new THREE.Mesh(new THREE.CircleGeometry(4 + Math.random() * 3, 18), pondMat); m.rotation.x = -Math.PI / 2; m.position.set(p.x, p.y + 0.06, p.z); scene.add(m); });
+
+    // ===== WILDLIFE: little herds that wander, flocks that wheel overhead, butterflies and fireflies =====
+    const leg = (x, z, h) => [gBox(0.16, h, 0.16, x, h / 2, z), 0x4a321e];
+    const ANIMALS = {
+        deer: mergeGeos([[gBox(1.7, 0.8, 0.6, 0, 1.4, 0), 0x9a6a3a], leg(-0.6, -0.2, 1.1), leg(0.6, -0.2, 1.1), leg(-0.6, 0.2, 1.1), leg(0.6, 0.2, 1.1), [gBox(0.3, 0.8, 0.3, 0.85, 2.0, 0, 0), 0x9a6a3a], [gBox(0.6, 0.38, 0.34, 1.05, 2.4, 0), 0x8a5a2a], [gBox(0.06, 0.6, 0.06, 0.95, 2.85, 0.14), 0xe8dcc0], [gBox(0.06, 0.6, 0.06, 0.95, 2.85, -0.14), 0xe8dcc0], [gBox(0.2, 0.2, 0.3, -0.9, 1.6, 0), 0xffffff]]),
+        camel: mergeGeos([[gBox(2.0, 1.0, 0.8, 0, 2.3, 0), 0xc9a46a], [gSph(0.55, 0, 3.0, 0), 0xc9a46a], leg(-0.7, -0.25, 1.9), leg(0.7, -0.25, 1.9), leg(-0.7, 0.25, 1.9), leg(0.7, 0.25, 1.9), [gBox(0.3, 1.2, 0.3, 1.1, 3.0, 0), 0xc9a46a], [gBox(0.7, 0.4, 0.36, 1.35, 3.6, 0), 0xb8935a]]),
+        goat: mergeGeos([[gBox(1.2, 0.7, 0.55, 0, 1.0, 0), 0x8a8a96], leg(-0.4, -0.18, 0.7), leg(0.4, -0.18, 0.7), leg(-0.4, 0.18, 0.7), leg(0.4, 0.18, 0.7), [gBox(0.5, 0.4, 0.3, 0.75, 1.45, 0), 0x6a6a76], [gCone(0.08, 0.6, 4, 0.7, 1.85, 0.1, 0, 0, -0.5), 0xd8d0c0], [gCone(0.08, 0.6, 4, 0.7, 1.85, -0.1, 0, 0, -0.5), 0xd8d0c0]]),
+        fox: mergeGeos([[gBox(1.0, 0.45, 0.4, 0, 0.6, 0), 0xf4f8ff], leg(-0.32, -0.12, 0.4), leg(0.32, -0.12, 0.4), leg(-0.32, 0.12, 0.4), leg(0.32, 0.12, 0.4), [gBox(0.4, 0.34, 0.3, 0.6, 0.85, 0), 0xffffff], [gCone(0.08, 0.25, 4, 0.62, 1.1, 0.08), 0xffffff], [gCone(0.08, 0.25, 4, 0.62, 1.1, -0.08), 0xffffff], [gBox(0.7, 0.3, 0.3, -0.75, 0.75, 0), 0xffffff]]),
+        flamingo: mergeGeos([[gSph(0.45, 0, 1.9, 0), 0xff8ab0], [gBox(0.06, 1.5, 0.06, 0, 0.75, 0), 0xff6a9a], [gBox(0.08, 0.9, 0.08, 0.3, 2.5, 0), 0xff8ab0], [gBox(0.3, 0.2, 0.15, 0.42, 2.95, 0), 0xffb0c8]])
+    };
+    const herd = (kind, region, n, groups) => S(groups, region, { gap: 30, rad: 4 }).forEach(c => {
+        for (let i = 0; i < n; i++) {
+            const m = new THREE.Mesh(ANIMALS[kind], matProp); m.castShadow = true; scene.add(m);
+            const ph = Math.random() * 6.28, r = 3 + Math.random() * 6, sp = 0.05 + Math.random() * 0.08;
+            animated.push(t => { const a = ph + t * sp, x = c.x + Math.cos(a) * r, z = c.z + Math.sin(a) * r * 0.7; m.position.set(x, groundAt(x, z) + Math.abs(Math.sin(t * 6 + ph)) * 0.06, z); m.rotation.y = -a - Math.PI / 2 * (sp > 0 ? 1 : -1); });
+        }
+    });
+    herd('deer', FR.forest, 5, 6); herd('camel', FR.desert, 4, 5); herd('goat', FR.crags, 5, 5); herd('fox', FR.snow, 4, 6);
+    const bird = mergeGeos([[gBox(0.25, 0.12, 0.6, 0, 0, 0), 0x2a2a3a], [gBox(1.2, 0.05, 0.35, -0.7, 0.05, 0, 0, 0, 0.3), 0x3a3a4a], [gBox(1.2, 0.05, 0.35, 0.7, 0.05, 0, 0, 0, -0.3), 0x3a3a4a]]);
+    [[-360, 60], [-200, -320], [360, 100], [330, -300], [-380, -200], [420, -60]].forEach(([cx, cz], fi) => {
+        for (let i = 0; i < 7; i++) {
+            const m = new THREE.Mesh(bird, matProp); scene.add(m); const off = i * 0.18, R = 26 + (i % 3) * 3;
+            animated.push(t => { const a = t * 0.22 + fi - off, y = 34 + Math.sin(t * 0.5 + i) * 2; m.position.set(cx + Math.cos(a) * R, y, cz + Math.sin(a) * R); m.rotation.set(0, -a, Math.sin(t * 9 + i) * 0.35); });
+        }
+    });
+    const flutter = (region, cols, n) => S(n, region, { gap: 3, rad: 1 }).forEach((p, i) => {
+        const g = makeGlow(p.x, p.y + 1.5, p.z, cols[i % cols.length], 0.9, 0.3), ph = Math.random() * 6;
+        animated.push(t => { g.position.set(p.x + Math.sin(t * 0.7 + ph) * 2.5, groundAt(p.x, p.z) + 1.2 + Math.abs(Math.sin(t * 5 + ph)) * 0.8, p.z + Math.cos(t * 0.5 + ph) * 2.5); });
+    });
+    flutter(FR.forest, [0xff9ad8, 0xfff06a, 0x9fd2ff], 40); flutter(FR.forest, [0xd8ff66], 40); flutter(FR.desert, [0xffb84d], 16); flutter(FR.snow, [0xffffff], 20);
+
+    // ===== THE FOUR WONDERS =====
+    const put = (geo, mat, x, z, ry, y) => { const m = new THREE.Mesh(geo, mat || matProp); m.position.set(x, y === undefined ? groundAt(x, z) : y, z); m.rotation.y = ry || 0; m.castShadow = true; m.receiveShadow = true; scene.add(m); return m; };
+    // 1. THE BLOOMING VALE: a cliff with a waterfall, a rainbow, a lily pond and a sea of flowers
+    (() => {
+        const X = VALE.x, Z = VALE.z, gy = groundAt(X, Z);
+        put(mergeGeos([[gBox(36, 22, 9, 0, 11, 0), 0x6a7a6a], [gBox(30, 4, 10, 0, 23, 0.5), 0x4f9a42], [gBox(10, 26, 8, -16, 13, -1), 0x5a6a5a], [gBox(10, 24, 8, 16, 12, -1), 0x5a6a5a]]), matProp, X, Z - 24, 0, gy);
+        addBox(X, Z - 24, 40, 9);
+        const c = mkCanvas(64, 256), g = c.getContext('2d');
+        for (let i = 0; i < 70; i++) { g.fillStyle = `rgba(${200 + Math.random() * 55},${230 + Math.random() * 25},255,${0.4 + Math.random() * 0.6})`; g.fillRect(Math.random() * 64, Math.random() * 256, 2 + Math.random() * 3, 20 + Math.random() * 60); }
+        const wt = new THREE.CanvasTexture(c); wt.wrapS = wt.wrapT = THREE.RepeatWrapping; wt.repeat.set(2, 1);
+        const fall = new THREE.Mesh(new THREE.PlaneGeometry(9, 22), new THREE.MeshBasicMaterial({ map: wt, color: 0xcff2ff, transparent: true, opacity: 0.9, depthWrite: false }));
+        fall.position.set(X, gy + 11, Z - 19.3); scene.add(fall);
+        const pool = new THREE.Mesh(new THREE.CircleGeometry(9, 28), new THREE.MeshStandardMaterial({ color: 0x3aa8d8, roughness: 0.1, metalness: 0.3, transparent: true, opacity: 0.9 }));
+        pool.rotation.x = -Math.PI / 2; pool.position.set(X, gy + 0.08, Z - 12); scene.add(pool);
+        const lily = mergeGeos([[gCyl(0.7, 0.7, 0.05, 8, 0, 0, 0), 0x3f9a4a], [gBox(0.3, 0.3, 0.3, 0.2, 0.15, 0), 0xffb6cf]]);
+        instanced(lily, matProp, Array.from({ length: 12 }, (_, i) => { const a = i * 0.9, r = 3 + (i % 4) * 1.4; return { x: X + Math.cos(a) * r, y: gy + 0.12, z: Z - 12 + Math.sin(a) * r * 0.7, s: 0.8 + Math.random() * 0.6, r: a }; }), false);
+        addSmoke(X, gy + 1, Z - 17); makeGlow(X, gy + 2, Z - 16, 0xffffff, 8, 0.2);
+        animated.push((t, dt) => { wt.offset.y -= (dt || 0.016) * 0.9; });
+        [0xff3b30, 0xff8a3a, 0xffe06a, 0x5aff8a, 0x4a8aff, 0x9a5aff].forEach((col, i) => {
+            const arc = new THREE.Mesh(new THREE.TorusGeometry(24 - i * 0.9, 0.45, 6, 48, Math.PI), new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity: 0.38, depthWrite: false }));
+            arc.position.set(X + 4, gy + 6, Z - 14); scene.add(arc);
+        });
+        meadow((x, z) => Math.hypot(x - X, z - Z) < 30 && z > Z - 8, [0xff9ad8, 0xffffff, 0xfff06a, 0xc99bff, 0xff6a6a], 140);
+    })();
+    // 2. SUNSPIRE CANYON: great red arches, hoodoo stacks and a humming sun-crystal
+    (() => {
+        const X = SUNSPIRE.x, Z = SUNSPIRE.z;
+        const arch = mergeGeos([[gBox(3.4, 14, 3.6, -7, 7, 0), 0xb5603a], [gBox(3.4, 14, 3.6, 7, 7, 0), 0xc2734a], [gBox(18, 3.6, 3.8, 0, 15.6, 0), 0xd08a55], [gBox(4, 2, 4, -7, 1, 0), 0x8a4a2a], [gBox(4, 2, 4, 7, 1, 0), 0x8a4a2a]]);
+        [[-12, -14, 0.3, 1.2], [14, -6, -0.6, 1], [2, -26, 0.1, 1.5]].forEach(([dx, dz, ry, sc]) => { const m = put(arch, matProp, X + dx, Z + dz, ry); m.scale.setScalar(sc); addCirc(X + dx + Math.cos(ry) * 7 * sc, Z + dz - Math.sin(ry) * 7 * sc, 2 * sc); addCirc(X + dx - Math.cos(ry) * 7 * sc, Z + dz + Math.sin(ry) * 7 * sc, 2 * sc); });
+        const gy = groundAt(X, Z);
+        put(mergeGeos([[gCyl(2.4, 3, 1.6, 8, 0, 0.8, 0), 0x8a4a2a]]), matProp, X, Z + 2, 0, gy); addCirc(X, Z + 2, 2.6);
+        const sunC = put(mergeGeos([[new THREE.OctahedronGeometry(1.6, 0).scale(1, 2.4, 1), 0xffd27a]]), matLit, X, Z + 2, 0, gy + 5.2);
+        const sg = makeGlow(X, gy + 5.2, Z + 2.5, 0xffb84d, 12, 0.3);
+        animated.push(t => { sunC.rotation.y = t * 0.8; sunC.position.y = gy + 5.2 + Math.sin(t * 1.5) * 0.4; sg.position.y = sunC.position.y; });
+    })();
+    // 3. THE BASALT SEA: a field of hex columns cut by glowing lava rivers, with obsidian sentinels
+    (() => {
+        const X = BASALT.x, Z = BASALT.z;
+        const lavaMat = new THREE.MeshBasicMaterial({ color: 0xff6a1a });
+        const river = pts => { const parts = []; for (let i = 0; i < pts.length - 1; i++) { const [ax, az] = pts[i], [bx, bz] = pts[i + 1], L = Math.hypot(bx - ax, bz - az), mx = (ax + bx) / 2, mz = (az + bz) / 2; parts.push([gBox(2.6, 0.12, L + 1.2, 0, 0, 0).rotateY(Math.atan2(bx - ax, bz - az)).translate(mx, groundAt(mx, mz) + 0.1, mz), 0xffffff]); } return new THREE.Mesh(mergeGeos(parts), lavaMat); };
+        [[[X - 40, Z + 30], [X - 20, Z + 12], [X - 6, Z + 4], [X + 10, Z - 10], [X + 34, Z - 30]], [[X - 30, Z - 34], [X - 14, Z - 18], [X - 2, Z - 2]]].forEach(p => { scene.add(river(p)); p.forEach(([x, z], i) => { if (i % 2 === 0) makeGlow(x, groundAt(x, z) + 0.8, z, 0xff5a1a, 6, 0.45); }); });
+        animated.push(t => { const k = 0.85 + Math.sin(t * 2.2) * 0.15; lavaMat.color.setRGB(1, 0.42 * k, 0.1 * k); });
+        const cols = []; for (let i = 0; i < 90; i++) { const a = Math.random() * 6.28, d = 6 + Math.random() * 22, x = X + Math.cos(a) * d, z = Z + Math.sin(a) * d; cols.push({ x: x, y: groundAt(x, z), z: z, s: 1, sx: 1.1, sz: 1.1, sy: 1 + Math.random() * 8, r: 0 }); }
+        const hex = new THREE.CylinderGeometry(1, 1, 1, 6); hex.translate(0, 0.5, 0); instanced(hex, rockMat(0x1e1e26), cols, true);
+        [[-12, -6], [10, 8], [14, -16]].forEach(([dx, dz]) => { put(mergeGeos([[gCone(2, 16, 5, 0, 8, 0), 0x0e0e14]]), glossy(0xffffff), X + dx, Z + dz); addCirc(X + dx, Z + dz, 1.8); });
+    })();
+    // 4. THE AURORA FIELDS: an ice forest under ribbons of light, around a frozen lake
+    (() => {
+        const X = AURORA.x, Z = AURORA.z, gy = groundAt(X, Z);
+        const lake = new THREE.Mesh(new THREE.CircleGeometry(14, 32), new THREE.MeshStandardMaterial({ color: 0xbfeaff, roughness: 0.02, metalness: 0.5 }));
+        lake.rotation.x = -Math.PI / 2; lake.position.set(X, gy + 0.06, Z - 4); scene.add(lake);
+        const ring = []; for (let i = 0; i < 16; i++) { const a = i / 16 * 6.28, x = X + Math.cos(a) * 19, z = Z - 4 + Math.sin(a) * 15; ring.push({ x: x, y: groundAt(x, z), z: z, s: 1 + Math.random() * 0.6, r: a }); addCirc(x, z, 0.6); }
+        instanced(icetree, iceMat, ring, true);
+        const c = mkCanvas(32, 128), g = c.getContext('2d'), gr = g.createLinearGradient(0, 0, 0, 128);
+        gr.addColorStop(0, 'rgba(90,255,200,0)'); gr.addColorStop(0.45, 'rgba(90,255,200,0.85)'); gr.addColorStop(0.75, 'rgba(154,122,255,0.6)'); gr.addColorStop(1, 'rgba(154,122,255,0)');
+        g.fillStyle = gr; g.fillRect(0, 0, 32, 128);
+        const at = new THREE.CanvasTexture(c);
+        [[0, 0, 0], [30, -40, 0.4], [-36, -30, -0.3]].forEach(([dx, dz, ry], i) => {
+            const m = new THREE.Mesh(new THREE.PlaneGeometry(150, 40, 24, 1), new THREE.MeshBasicMaterial({ map: at, transparent: true, opacity: 0.7, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, depthWrite: false, fog: false }));
+            m.position.set(X + dx, 70 + i * 8, Z - 60 + dz); m.rotation.y = ry; scene.add(m);
+            animated.push(t => { m.material.opacity = 0.45 + 0.3 * Math.sin(t * 0.6 + i); m.position.x = X + dx + Math.sin(t * 0.15 + i) * 8; m.rotation.z = Math.sin(t * 0.2 + i) * 0.06; });
+        });
+        for (let i = 0; i < 18; i++) { const a = Math.random() * 6.28, d = 4 + Math.random() * 10, x = X + Math.cos(a) * d, z = Z - 4 + Math.sin(a) * d * 0.7, gl = makeGlow(x, gy + 1, z, i % 2 ? 0x5affc8 : 0x9a7aff, 1.6, 0.4); animated.push(t => { gl.position.y = gy + 1 + Math.sin(t + i) * 0.6; }); }
     })();
 })();
 
@@ -5896,7 +6064,8 @@ const miniBase = mkCanvas(140, 140);
         [STOA.x, STOA.z, '#ffb54d', 3], [HERM.x, HERM.z, '#9cff7a', 3], [FROST.x, FROST.z, '#3a7bd5', 3], [CAVE.x, CAVE.z, '#ff8a30', 3],
         [BRINE.x, BRINE.z, '#4fc3f7', 3], [EMBER.x, EMBER.z, '#ff7a2a', 3], [SKY.x, SKY.z, '#ffffff', 3],
         [PORTALS.hollow.x, PORTALS.hollow.z, '#9fd2ff', 2], [PORTALS.ashen.x, PORTALS.ashen.z, '#ff8a30', 2], [PORTALS.glacier.x, PORTALS.glacier.z, '#7ae8ff', 2],
-        [ASHFORD.x, ASHFORD.z, '#ff6a20', 3], [MAW.x, MAW.z, '#ff3b30', 3], [WHITE.x, WHITE.z, '#9fe8ff', 3], [DUNES.x, DUNES.z, '#ffd27a', 3], [ELDER.x, ELDER.z, '#7dffb4', 3]]
+        [ASHFORD.x, ASHFORD.z, '#ff6a20', 3], [MAW.x, MAW.z, '#ff3b30', 3], [WHITE.x, WHITE.z, '#9fe8ff', 3], [DUNES.x, DUNES.z, '#ffd27a', 3], [ELDER.x, ELDER.z, '#7dffb4', 3],
+        [VALE.x, VALE.z, '#ff9ad8', 3], [SUNSPIRE.x, SUNSPIRE.z, '#ff8a3a', 3], [BASALT.x, BASALT.z, '#ff5a1a', 3], [AURORA.x, AURORA.z, '#5affc8', 3]]
         .forEach(([x, z, col, r]) => { g.fillStyle = col; g.beginPath(); g.arc(c + x * sc, c + z * sc, r, 0, Math.PI * 2); g.fill(); });
     g.fillStyle = '#66e0ff';
     TABLETS.forEach(t => g.fillRect(c + t.x * sc - 1, c + t.z * sc - 1, 2, 2));
