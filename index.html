@@ -3562,8 +3562,9 @@ const ART_ANIMS = {
 // 10b. COMBAT: party turns, multiple foes, gears (mecha), items & equipment
 // ==========================================
 const ENEMY_TYPES = {
-    warlord: { name: 'VANGUARD', hp: 9500, dmg: [170, 240], size: 1.45, tint: 0xff9090, boss: true, trait: 'charge', xp: 400 },
-    beauregard: { name: 'BEAUREGARD', hp: 6000, dmg: [140, 200], size: 0.82, tint: 0xffffff, boss: true, trait: 'double', xp: 260 }
+    // as enemies (never on the Ash Path, where they fight beside you) these two are the strongest foes on Aethelgard
+    warlord: { name: 'VANGUARD', hp: 60000, dmg: [260, 330], def: 140, size: 1.45, tint: 0xff9090, boss: true, trait: 'charge', trait2: 'warded', xp: 5000, spellEvery: 2 },
+    beauregard: { name: 'BEAUREGARD', hp: 52000, dmg: [240, 300], def: 125, size: 0.82, tint: 0xffffff, boss: true, trait: 'double', trait2: 'evade', xp: 4200, spellEvery: 2 }
 };
 BESTIARY.raider = { name: 'RAIDER', body: 'human', D: ROBBER_D, hp: 1000, dmg: [85, 125], xp: 28, trait: 'none' };
 TRAIT_TEXT.none = 'No special traits';
@@ -3785,7 +3786,7 @@ function buildGearRig(key) {
     // skeleton: hips, torso, head, two arms with a hand socket each, two legs
     const sk = { kaelen: [4.2, 1.0, 2.3, 7.0, 8.6, 4.2], lira: [4.6, 0.8, 1.4, 7.8, 9.0, 3.4], cassius: [4.0, 1.1, 2.7, 7.0, 8.9, 4.2],
                  maren: [3.6, 0, 2.4, 5.8, 7.4, 3.0], nils: [4.2, 1.3, 3.2, 7.6, 9.2, 4.8], silver: [4.4, 0.8, 1.9, 7.3, 9.0, 3.3],
-                 vanguard: [4.4, 1.3, 3.2, 7.8, 9.4, 4.6], beauregard: [4.4, 0.9, 2.0, 7.4, 8.9, 3.8] }[key];
+                 vanguard: [4.4, 1.3, 3.2, 7.8, 9.4, 4.6], beauregard: [4.4, 0.9, 2.0, 7.4, 8.9, 3.8], silverelf: [4.6, 0, 2.3, 7.8, 9.6, 3.4] }[key];
     const [hipY, legX, shX, shY, headY, hand] = sk;
     rig.hipY = hipY;
     const torso = rig.torso = grp(root, 0, hipY, 0);
@@ -3900,6 +3901,20 @@ function buildGearRig(key) {
         add(weapon, [[cy(0.13, 0.13, 1.0, 6, 0, 0, 0), K], [bx(1.3, 0.22, 0.4, 0, 0.55, 0), Y], [bx(0.4, 5.6, 0.12, 0.08, 3.4, 0, 0, 0, -0.05), '#c8ccd8']]);
         add(weapon, [[bx(0.1, 5.2, 0.16, -0.1, 3.4, 0, 0, 0, -0.05), RD]], glowM);
         add(offhand, [[bx(0.3, 1.6, 0.1, 0, -0.4, 0.3), '#c8ccd8']]);
+    } else if (key === 'silverelf') {  // ARGENT: a hovering moon-knight in silver-white and blue, robed armor, crescent crown, great staff
+        rig.style = 'spear'; rig.hover = true;
+        add(torso, [[cy(1.2, 2.7, 4.4, 12, 0, -2.0, 0), S], [cy(2.75, 2.75, 0.25, 12, 0, -4.15, 0), Y], [bx(0.5, 4.2, 0.12, 0, -2.0, 2.0, -0.33), SL],
+            [cy(1.0, 1.25, 2.6, 10, 0, 1.4, 0), S], [bx(1.8, 1.4, 0.3, 0, 1.8, 1.05), SL], [cy(0.7, 1.6, 0.8, 10, 0, 3.0, 0), SL], [cy(1.27, 1.27, 0.3, 10, 0, 0.2, 0), Y],
+            [bx(0.15, 6.2, 2.2, 1.3, 0.6, -1.4, 0, 0.35, 0.12), SD], [bx(0.15, 6.2, 2.2, -1.3, 0.6, -1.4, 0, -0.35, -0.12), SD]]);
+        add(torso, [[sp(0.38, 0, 1.6, 1.25), RD], [bx(0.08, 6, 0.08, 1.38, 0.6, -0.4, 0, 0.35, 0.12), RD], [bx(0.08, 6, 0.08, -1.38, 0.6, -0.4, 0, -0.35, -0.12), RD]], glowM);
+        add(head, [[sp(0.85, 0, 0, 0, 1, 1.1, 1), S], [cn(0.18, 1.3, 4, 0.95, 0.3, -0.1, 0, 0, -1.25), SL], [cn(0.18, 1.3, 4, -0.95, 0.3, -0.1, 0, 0, 1.25), SL], [bx(1.5, 0.9, 1.4, 0, -0.1, -0.35), SL]]);
+        add(head, [[bx(1.2, 0.22, 0.1, 0, 0.05, 0.86), RD], [to(1.0, 0.09, Math.PI * 1.2, 0, 0.95, 0, Math.PI / 2, 0, Math.PI * 0.4), Y]], glowM);
+        arms(() => [[sp(0.62, 0, 0, 0), SL], [cy(0.35, 0.55, 2.0, 8, 0, -1.2, 0), S], [cy(0.6, 0.6, 0.2, 8, 0, -2.2, 0), Y], [sp(0.35, 0, -2.6, 0), SD]]);
+        add(weapon, [[cy(0.12, 0.12, 9, 6, 0, 1.5, 0), K], [cy(0.22, 0.16, 0.6, 6, 0, 6.1, 0), Y], [to(1.1, 0.1, Math.PI * 2, 0, 7.3, 0), SL]]);
+        add(weapon, [[sp(0.45, 0, 7.3, 0, 0.7, 1.6, 0.7), RD], [to(0.85, 0.05, Math.PI * 2, 0, 7.3, 0), Y]], glowM);
+        add(offhand, [[sp(0.4, 0, -0.5, 0.6), Y]], glowM);
+        rig.ring = new THREE.Group(); rig.ring.position.set(0, -0.6, 0); rig.ring.rotation.x = Math.PI / 2 - 0.2; torso.add(rig.ring);
+        add(rig.ring, [[to(3.6, 0.06, Math.PI * 2, 0, 0, 0), RD], [sp(0.25, 3.6, 0, 0), '#ffffff'], [sp(0.2, -3.6, 0, 0), Y]], glowM);
     } else {                          // COMET: orbital gear with halo ring, crescent blades, thrusters
         rig.style = 'blades'; rig.hover = true;
         legs(() => [[bx(0.9, 2.0, 1.0, 0, -1.0, 0), SD], [cy(0.6, 0.3, 2.4, 6, 0, -3.2, 0), S], [bx(0.8, 0.4, 1.6, 0, -4.4, 0.2), K]]);
@@ -6026,6 +6041,7 @@ function animate() {
         const now = performance.now();
         if (B) {
             B.party.forEach((u, i) => {
+                u.actor.castUntil = u.poseUntil;
                 if (u.ko) { u.actor.mesh.material.map = u.actor.hurtR || u.actor.frames.right[0]; return; }
                 if (u.mech) { animGear(u.mechActor, { battle: true, atk: now < u.poseUntil, hurt: now < u.hurtUntil && now >= u.poseUntil }); return; }
                 const a = u.actor, ready = u.key === 'kaelen' ? HERO_SET.ready[Math.floor(time * 2.2) % 2] : a.frames.right[0];
@@ -6082,6 +6098,7 @@ function animate() {
     stars.position.copy(camera.position);
     moon.position.set(camera.position.x - 110, camera.position.y + 52, camera.position.z - 420);
 
+    syncActorModels();
     renderer.render(scene, camera);
 }
 
@@ -7666,6 +7683,7 @@ function gearRoundStart(u) {
     if (u.key === 'kaelen') { u.barrier = 300; }
     if (u.key === 'maren') LIVE_PARTY().forEach(w => healUnit(w, w.st.maxHp * 0.07));
     if (u.key === 'silver') { u.ap += 1; floatText('+1 AP', '#c99bff', UPOS(u), 1.0); }
+    if (u.key === 'silverelf') { u.ap += 1; LIVE_PARTY().forEach(w => { w.st.ep = Math.min(w.st.maxEp, w.st.ep + 6); }); floatText('MANA TIDE', '#9fd2ff', UPOS(u), 1.0); }
     if (u.key === 'vanguard') { u.furyRounds = (u.furyRounds || 0) + 1; floatText(`FURY +${Math.round((gearDmgK(u) - 1) * 100)}%`, '#ff4a2e', UPOS(u), 1.0); }
 }
 function bleedTick() {
@@ -8073,6 +8091,7 @@ function joinSpecial(key) {
     const a = makeActor(humanSet(D), 3.4 * (def.look.scale || 1), 0.85); csEquip(a, D);
     const m = { key: key, def: def, actor: a, atkTex: a.atkR, poseUntil: 0 };
     initAllyStats(m); grantGear(key); m.active = true; party.push(m);
+    if (key === 'silverelf' && ACTOR_MODELS) ACTOR_MODELS.push({ a: a, m: buildSilverElf(0.34) });
     if (story.heirs && story.heirs.indexOf(key) < 0) story.heirs.push(key);
     setControl(story.heirs); updateMinimap();
     return m;
@@ -8354,6 +8373,7 @@ function animSilverElf(E, t, o) {      // levitating idle, spinning rune ring, h
 }
 let SE_COMBAT = null;
 
+
 // ---------- BENEATH THE TITANS: a cave opens wherever a titan falls ----------
 Object.assign(BESTIARY, {
     vampire_thrall: { name: 'VAMPIRE THRALL', body: 'human', D: lookOf({ hair: '#141418', hairStyle: 'short', skin: '#e8dcd8', skinD: '#c8b8b4', top: '#2a0a10', robe: '#2a0a10', collar: '#a8101a', pants: '#14080a', blade: '#c8ccd8', bladeL: '#ffffff', hilt: '#3a0a10' }), hp: 3600, dmg: [170, 230], xp: 90, trait: 'siphon', trait2: 'evade' },
@@ -8430,6 +8450,18 @@ const SPELL_FX = {
         _fxAt(bid, 900, () => { T.forEach(u => { const p = UPOS(u); fxFlash(p, 0xffffff, 16, 0.5); dirSlash(p, -0.4, 0xffffff, 8, false, 0.35); dirSlash(p, 0.2, 0xc9d8ff, 8, true, 0.35); dirSlash(p, -Math.PI / 2 + 0.75, 0x9fd2ff, 9, false, 0.4); speedLines(p, 0xffffff, 16); }); screenTint('#ffffff', 1, 220); camPunch(9, 0.5); triggerCameraShake(3.2); cb(); });
     }
 };
+// Vanguard's and Beauregard's own signature moves, turned against you
+ENEMY_TYPES.warlord.spells = [SPELL('OBSIDIAN CANNON', 'cannon', 2.0, false, 'Kneel or be destroyed. Destroyed it is!'), SPELL('IRON DOCTRINE', 'souls', 1.0, true, 'Order is a wall. Stand behind it, or under it.'),
+    SPELL('ASHFORD FIRE', 'scorch', 1.2, true, 'I remember every town. That is my punishment.'), SPELL('THE LAST ORDER', 'judgment', 2.4, false, 'This is the final judgment!', 'chill')];
+ENEMY_TYPES.beauregard.spells = [SPELL('RED SCARF', 'scarf', 1.6, false, 'You never see the second cut.'), SPELL('CRAG AMBUSH', 'scarf', 0.9, true, 'Surprise is a weapon too.'),
+    SPELL('PASSED ON', 'mist', 2.2, false, "Nobody dies on my watch. They pass on.")];
+Object.assign(SPELL_FX, {
+    cannon(f, T, cb, bid) { const F = FPOS(f), p = UPOS(T[0]); gatherEnergy({ x: F.x - 1, y: F.y + 1, z: F.z }, 0xff4a2e); screenTint('#2a0a06', 0.6, 900);
+        _fxAt(bid, 650, () => { thrustFX({ x: F.x - 1, y: F.y + 1 }, p, 0xffd27a, 2.2, 0.6); thrustFX({ x: F.x - 1, y: F.y + 1 }, p, 0xff4a2e, 4, 0.8); fxFlash(p, 0xffffff, 18, 0.5); fxFlash(p, 0xff4a2e, 26, 0.9); shockSphere(p, 0xff8a30, 9, 0.7); debris({ x: p.x, y: GROUND + 0.5, z: p.z }, 0x2f2f38, 14); camPunch(8, 0.5); hitStop(220, 0.12); triggerCameraShake(3); cb(); }); },
+    scorch(f, T, cb, bid) { screenTint('#3a0a00', 0.55, 1300); T.forEach((u, i) => { const p = UPOS(u); _fxAt(bid, 200 + i * 130, () => ringFX({ x: p.x, y: GROUND + 0.1, z: p.z }, 0xff8a30, 3, 0.4, 0.45, true)); _fxAt(bid, 650 + i * 130, () => { beamFX({ x: p.x, y: GROUND, z: p.z }, 0xff4a2e, 18, 2.4, 0.9); beamFX({ x: p.x, y: GROUND, z: p.z }, 0xffd27a, 18, 1, 0.7); particles(p, 0xff8a30, 34, { speed: 7, up: 1.6, grav: -2, life: 1.1 }); triggerCameraShake(1.3); }); }); _fxAt(bid, 1150 + T.length * 130, cb); },
+    scarf(f, T, cb, bid) { screenTint('#000000', 0.55, 600); f.actor.mesh.visible = false; T.forEach((u, i) => { const p = UPOS(u); for (let j = 0; j < 4; j++) _fxAt(bid, 250 + i * 160 + j * 70, () => { dirSlash(p, j % 2 ? 0.2 : -0.5, j % 2 ? 0xffffff : 0xff3b30, 6, j % 2 === 1, 0.25); triggerCameraShake(0.6); }); });
+        _fxAt(bid, 550 + T.length * 160, () => { f.actor.mesh.visible = true; screenTint('#ff3b30', 0.5, 220); T.forEach(u => fxFlash(UPOS(u), 0xff3b30, 9, 0.4)); camPunch(5, 0.35); cb(); }); }
+});
 function castSpell(f, sp, done) {
     const bid = BID, T = sp.all ? LIVE_PARTY() : [pickVictim()].filter(Boolean);
     if (!T.length) { done(); return; }
@@ -8483,7 +8515,7 @@ const CAVES = [
                 "Don't be flattered. I'm only curious what kind of magic you mortals still remember.",
                 ['@', "We didn't come to steal your books."], "Everyone who burns books says that first.",
                 "Show me, then. And try not to blink. Most of them blink."],
-            fall: "...Hm. Not bad. Not bad at all. Take what you need from the library. I'll be here in another thousand years, if you want a rematch." } }
+            fall: "...Hm. Not bad. Not bad at all. A thousand years of waiting, and the first people to beat me came here to protect books, not burn them." } }
 ];
 const CAVE_BY_KEY = {};
 CAVES.forEach((C, i) => {
@@ -8543,11 +8575,63 @@ async function caveReveal(FB) {
     csEnd({ x: C.x + 4, z: C.z + 8 });
     autoSave();
 }
+// ---------- the Silver Elf joins ----------
+ALLY_DEFS.silverelf = { name: 'Silver Elf', title: 'Keeper of the Silver Grove, a thousand years old', town: 'the Silver Grove', pow: 160, skill: 'MOONSILVER LANCE', desc: 'A spear of moonlight older than any kingdom.', look: Object.assign({}, SILVER_ELF_D, { scale: 1.05 }) };
+CHAR_BASE.silverelf = { hp: 1500, ep: 90, atk: 158, def: 95, ap: 8, wtype: 'staff', g: { hp: 85, ep: 6, atk: 9, def: 5 } };
+[['staff', ['Grove Wand', 'Moonbirch Staff', 'Starlit Rod', 'Moonsilver Staff']]].forEach(([t, names]) => names.forEach((n, i) => { WEAPONS[t + i] = { id: t + i, type: t, tier: i, name: n, atk: [0, 18, 40, 70][i], price: [0, 320, 950, 2300][i] }; }));
+OWNED.weapons.staff0 = 1; WHO.staff = 'Silver Elf';
+STRIKE_STYLE.staff = { c1: 0xc9d8ff, c2: 0x9fd2ff, kind: 'arrow' };          // on foot: moonlight bolts from left, right, the sky, then a straight beam
+GEAR_STRIKE.silverelf = { c1: 0xe8eef8, c2: 0x4a8aff, kind: 'pole' };     // in ARGENT: great staff sweeps
+GEARS.silverelf = { name: 'ARGENT', hp: 2600, pal: { S: '#e8eef8', SL: '#ffffff', SD: '#9fb4d0', K: '#1e2a5a', RD: '#4a8aff', Y: '#9fd2ff' } };
+GEAR_COLOR.silverelf = 0xe8eef8;
+GEAR_PASSIVE.silverelf = { name: 'MANA TIDE', text: '+1 AP for her and +6 EP for the whole party every round.' };
+const SE_ART = (name, seq, mult, tgt, fx, q, tpl, c1, c2) => { ART_ANIMS[name] = imp => GX[tpl](imp, c1, c2, tgt === 'all'); ART_COLORS[name] = hx(c1); return { name: name, seq: seq, mult: mult, tgt: tgt, fx: fx, learned: true, q: q }; };
+ALLY_ARTS.silverelf = [
+    SE_ART('MOONSILVER LANCE', [4, 3], 3.2, 'one', 'pierce', '"Older than your kingdom. Sharper, too."', 'meteor', 0xc9d8ff, 0xffffff),
+    SE_ART('AURORA CAGE', [2, 4, 2], 2.4, 'all', 'chillAll', '"Hold still. The sky is folding."', 'pillar', 0x5affc8, 0x9a7aff),
+    SE_ART('STARFALL OF AGES', [4, 4, 3], 2.9, 'all', 'crit', '"Every star I ever named. All at once."', 'orbitals', 0xffffff, 0xffd27a),
+    SE_ART('THE LONG SILENCE', [4, 3, 4, 3], 4.8, 'one', 'stun', '"For one heartbeat, time forgets you."', 'nova', 0xc9d8ff, 0x9fd2ff)];
+ALLY_STORY.silverelf = ["Life is full of magic in every moment. I will harness all of life and pour my power into helping you.",
+    "A thousand years I guarded the library under the Elderwood. Aldric found it once. He brought me tea and asked me nothing. I liked him.",
+    "The Raiders burn books because they are afraid of what lasts. I have outlasted every one of them. I intend to keep doing so."];
+HANGAR_LINES.silverelf = { pre: [['SILVER ELF', "Three hundred years ago I built a guardian for the grove while I slept. I named it after the moon's oldest metal."]],
+    awe: "It's like moonlight learned how to stand up.", line: ['SILVER ELF', "ARGENT. Wake up, old friend. We have someone worth helping."] };
+GEAR_ARTS_BY.silverelf = [];
+[['LUNAR EDICT', [2, 3], 3.0, 'one', 'pierce', 'The moon decides. The moon has decided.', 'meteor', 0xe8eef8, 0x4a8aff],
+ ['SILVERFROST VEIL', [3, 3, 3], 2.4, 'all', 'aegisAll', 'Behind me. This veil has held for three hundred years.', 'nova', 0x9fd2ff, 0xffffff],
+ ['ARGENT JUDGMENT', [1, 2, 3, 3], 4.6, 'one', 'stun', 'Silver for the guilty. Silver for the brave.', 'pillar', 0xffffff, 0x4a8aff],
+ ['CONSTELLATION ENGINE', [4, 2, 3], 3.0, 'all', 'markAll', 'Every star is a gear. Every gear is turning.', 'orbitals', 0x9fd2ff, 0xe8eef8],
+ ['MOONWELL', [3, 4, 3], 2.2, 'all', 'healAll', 'Drink. The moon pours for everyone tonight.', 'pillar', 0x4a8aff, 0xffffff],
+ ['THE THOUSANDTH YEAR', [4, 3, 3, 4], 6.0, 'all', 'execute', 'I have waited a thousand years for this one.', 'meteor', 0xffffff, 0x9fd2ff]].forEach(([name, seq, mult, tgt, fx, q, tpl, c1, c2], idx) => {
+    const art = { name: name, seq: seq, mult: mult, tgt: tgt, fx: fx, learned: true, q: q, fin: idx === 2 || seq.length >= 4 };
+    GEAR_ARTS_BY.silverelf.push(art); ART_COLORS[name] = hx(c1);
+    ART_ANIMS[name] = imp => { const u = ACT.u, a = ACT; gearCutIn(u); setTimeout(() => { if (!inCombat || ACT !== a) { imp(); return; } GX[tpl](() => { gearImpact(u, art, art.fin); imp(); }, c1, c2, tgt === 'all'); }, 650); };
+});
+// her body is the same 3D model you fought, wherever her sprite would be (world, cutscenes, battle)
+var ACTOR_MODELS = [];
+function syncActorModels() {
+    if (!ACTOR_MODELS) return;
+    for (const e of ACTOR_MODELS) {
+        const a = e.a, show = a.mesh.visible && !(inCombat && B && B.party.some(u => u.actor === a && u.mech));
+        e.m.root.visible = show; a.mesh.material.opacity = show ? 0 : 1; if (!show) continue;
+        const p = a.mesh.position, fallen = Math.abs(a.mesh.rotation.z) > 1;
+        e.m.root.position.set(p.x, p.y - a.half + a.size * 0.045 + (fallen ? 0.3 : 0.25 + Math.sin(time * 1.6) * 0.12), p.z);
+        e.m.root.rotation.set(0, inCombat ? 0.9 : ({ down: 0, up: Math.PI, left: -Math.PI / 2, right: Math.PI / 2 })[a.dir] || 0, fallen ? -Math.PI / 2 : 0);
+        animSilverElf(e.m, time, { cast: performance.now() < (a.castUntil || 0) || performance.now() < (a.poseUntil || 0) });
+    }
+}
+function silverElfJoins() {
+    if (party.some(m => m.key === 'silverelf')) return;
+    const m = joinSpecial('silverelf');
+    if (roster().length > 5) { m.active = false; }
+    playDialogue([{ s: 'THE SILVER ELF', t: "Life is full of magic in every moment. I will harness all of life and pour my power into helping you." }],
+        () => hangarScene('silverelf').then(() => playDialogue([{ s: 'PARTY', t: `THE SILVER ELF JOINS THE PARTY! ${ALLY_DEFS.silverelf.title}. MOONSILVER LANCE, AURORA CAGE, STARFALL OF AGES, THE LONG SILENCE, and her gear ARGENT.${m.active ? '' : ' Your party is full, so she waits in reserve: swap her in from the PARTY menu.'}` }], () => autoSave())));
+}
 function caveCleared(key) {
     const C = CAVE_BY_KEY[key]; if (!C) return;
     story.caveDone = story.caveDone || {}; const first = !story.caveDone[key]; story.caveDone[key] = true;
     if (first) { bag.elixir = (bag.elixir || 0) + 2; bag.fuel = (bag.fuel || 0) + 3; }
-    playDialogue([{ s: C.boss.name, t: C.boss.fall }].concat(first ? [{ s: 'REWARD', t: giveReward(['Elixir x2, Gear Fuel x3.'], key === 'cave_treant' ? 9000 : 4000) }] : []), () => autoSave());
+    playDialogue([{ s: C.boss.name, t: C.boss.fall }].concat(first ? [{ s: 'REWARD', t: giveReward(['Elixir x2, Gear Fuel x3.'], key === 'cave_treant' ? 9000 : 4000) }] : []), () => { if (key === 'cave_treant') silverElfJoins(); else autoSave(); });
 }
 
 // ==========================================
