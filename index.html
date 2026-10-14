@@ -3605,7 +3605,10 @@ const WEAPONS = {};
 }));
 const ARMORS = {
     arm0: { id: 'arm0', name: "Traveler's Cloth", def: 0, price: 0 }, arm1: { id: 'arm1', name: 'Leather Vest', def: 12, price: 160 },
-    arm2: { id: 'arm2', name: 'Chain Mail', def: 28, price: 480 }, arm3: { id: 'arm3', name: 'Mirror Plate', def: 48, price: 1250 }, arm4: { id: 'arm4', name: 'Aether Plate', def: 72, price: 2700 }
+    arm2: { id: 'arm2', name: 'Chain Mail', def: 28, price: 480 }, arm3: { id: 'arm3', name: 'Mirror Plate', def: 48, price: 1250 }, arm4: { id: 'arm4', name: 'Aether Plate', def: 72, price: 2700 },
+    // sold only at the mouth of the Silver Grove: heavy armor that also turns aside magic (MAGIC DEF = % less spell damage)
+    arm5: { id: 'arm5', name: 'Moonweave Robe', def: 95, mdef: 30, price: 6500 }, arm6: { id: 'arm6', name: 'Starlight Aegis', def: 130, mdef: 45, price: 12000 },
+    arm7: { id: 'arm7', name: 'Elfsilver Mail', def: 165, mdef: 60, price: 20000 }
 };
 const ITEMS = {
     potion:   { name: 'Potion', price: 40, desc: 'Restores 400 HP to the most wounded ally.' },
@@ -3615,7 +3618,8 @@ const ITEMS = {
     antidote: { name: 'Antidote', price: 25, desc: 'Cures poison and chill on the whole party.' },
     fuel:     { name: 'Fuel Cell', price: 60, desc: 'Refuels and repairs every gear by 50%.' },
     smoke:    { name: 'Smoke Bomb', price: 50, desc: 'Escape any non-boss battle.' },
-    elixir:   { name: "Philosopher's Elixir", price: 650, desc: 'Fully restores HP and EP of the whole party.' }
+    elixir:   { name: "Philosopher's Elixir", price: 650, desc: 'Fully restores HP and EP of the whole party.' },
+    veil:     { name: 'Veil of the Unwritten', price: 1000, desc: 'Battle only: the whole party is INVINCIBLE for 3 turns. Nothing touches you.' }
 };
 const bag = { potion: 3, ether: 1, antidote: 1, fuel: 1 };
 const OWNED = { weapons: { sword0: 1, bow0: 1, spear0: 1, lamp0: 1, axe0: 1, blades0: 1 }, armors: { arm0: 6 } };
@@ -3623,6 +3627,7 @@ const EQUIP = { kaelen: { weapon: 'sword0', armor: 'arm0' } };
 story.gold = 150;
 const wAtk = k => WEAPONS[(EQUIP[k] || {}).weapon] ? WEAPONS[EQUIP[k].weapon].atk : 0;
 const aDef = k => ARMORS[(EQUIP[k] || {}).armor] ? ARMORS[EQUIP[k].armor].def : 0;
+const aMdef = k => ARMORS[(EQUIP[k] || {}).armor] ? (ARMORS[EQUIP[k].armor].mdef || 0) : 0;
 function allyStatsFor(key, lv) {
     const b = CHAR_BASE[key], g = b.g, n = lv - 1;
     return { maxHp: b.hp + g.hp * n, maxEp: b.ep + g.ep * n, atk: b.atk + g.atk * n, def: b.def + g.def * n, maxAp: b.ap };
@@ -4117,6 +4122,7 @@ function updateBattleStatus(extra) {
     if (u.bank) s.push(`LINK +${u.bank}`);
     if (u.streak) s.push(`STREAK x${u.streak}`);
     if (u.guard) s.push('GUARD');
+    if (u.invuln) s.push(`INVINCIBLE ${u.invuln}`);
     if (u.poison) s.push(`POISON ${u.poison}`);
     if (u.mech) s.push(`${GEARS[u.key].name}: dmg x1.8, +2 AP`);
     if (t && t.charged) s.push(`${t.name} CHARGING!`);
@@ -4375,6 +4381,7 @@ function startRound() {
         u.ap = Math.max(1, unitMaxAp(u) + u.bank - (u.chill ? 2 : 0));
         u.chill = false; u.buf = [];
         if (u.taunt) u.taunt--;
+        if (u.invuln) { u.invuln--; if (u.invuln) ringFX(UPOS(u), 0xfff6c8, 0.6, 3, 0.5, false); }
         gearRoundStart(u);
     });
     B.foes.forEach(f => { if (f.mark) f.mark--; });
@@ -4465,11 +4472,13 @@ function pickVictim() {
 }
 function strikeUnit(f, u, mult) {
     if (!u || u.ko) return;
+    if (u.invuln > 0) { floatText('INVINCIBLE', '#fff6c8', UPOS(u), 1.3); ringFX(UPOS(u), 0xfff6c8, 0.6, 3.4, 0.45, false); return; }
     let raw = (f.dmg[0] + Math.random() * (f.dmg[1] - f.dmg[0])) * mult;
     if (f.charged) { raw *= 2.4; f.charged = false; }
     if (HT(f, 'enrage') && f.hp < f.maxHp * 0.5) raw *= 1.5;
     const def = u.st.def + aDef(u.key) * 1 + (u.taunt ? u.st.def * 0.6 : 0);
     let net = Math.max(10, Math.round(raw - def / 2));
+    if (f.noLunge && aMdef(u.key)) net = Math.max(10, Math.round(net * (1 - aMdef(u.key) / 100)));      // magic defense softens spells
     if (u.guard) { net = Math.round(net / 2); u.guard = false; floatText('GUARDED', '#9fd2ff', UPOS(u), 1.1); }
     let dodged = false;
     if (u.mech) {
@@ -4635,6 +4644,11 @@ function useItem(id) {
             (inCombat ? B.party : roster()).forEach(w => { w.st.hp = w.st.maxHp; w.st.ep = w.st.maxEp; if (inCombat && w.ko) setKO(w, false); });
             msg = 'The whole party is fully restored!'; break;
         case 'smoke': bag[id]--; endCombat(null); return;
+        case 'veil':
+            if (!inCombat) { showDialogue('The veil only answers in battle.'); return; }
+            B.party.forEach(w => { if (w.ko) return; w.invuln = 3; const p = UPOS(w); shockSphere(p, 0xfff6c8, 3, 0.6); beamFX({ x: p.x, y: GROUND, z: p.z }, 0xfff6c8, 10, 1.2, 0.8); });
+            screenTint('#fff6c8', 0.4, 300);
+            msg = 'An unwritten page wraps the party. Nothing can touch them for 3 turns!'; break;
     }
     bag[id]--; if (!bag[id]) delete bag[id];
     refreshStats();
@@ -4710,6 +4724,7 @@ function startCombat(keyOrList, biome, opts) {
     if (wasRiding) B.party.forEach(u => { const g = GEAR_STATE[u.key]; if (g && g.fuel > 0 && g.hp > 0) boardGear(u, false); });
     enemyPool.forEach(a => { a.mesh.visible = false; a.blob.visible = false; });
     foes.forEach((f, i) => {
+        if (ENEMY_TYPES[f.key] && ENEMY_TYPES[f.key].model3d) f.model = SE_COMBAT || (SE_COMBAT = buildSilverElf(0.5));
         const sl = FOE_SLOTS[i]; f.home = { x: S.x + sl[0], z: S.z + sl[1] };
         f.actor.mesh.visible = true; f.actor.blob.visible = true; f.actor.mesh.material.opacity = 1;
         f.actor.mesh.material.color.set(f.tint);
@@ -4742,6 +4757,7 @@ function endCombat(result) {
     inCombat = false; combatBusy = false;
     document.body.classList.remove('in-combat', 'executing');
     if (B) B.party.forEach(u => { if (u.mech) ejectGear(u); if (u.mechActor) { u.mechActor.mesh.visible = false; u.mechActor.blob.visible = false; } u.actor.mesh.rotation.z = 0; if (u.st.hp <= 0) u.st.hp = 1; });
+    if (SE_COMBAT) SE_COMBAT.root.visible = false;
     enemyPool.forEach(a => { a.mesh.visible = false; a.blob.visible = false; a.mesh.scale.set(1, 1, 1); a.blob.scale.setScalar(1); a.mesh.material.color.set(0xffffff); a.mesh.material.opacity = 1; });
     $('battle-panel').style.display = 'none';
     $('combo-feed').style.display = 'none';
@@ -5048,6 +5064,7 @@ const SHOPS = {
     frostfall: { name: 'FROSTFALL OUTFITTER', items: ['hipotion', 'ether', 'feather', 'fuel', 'elixir'], weapons: 3, armors: ['arm2', 'arm3', 'arm4'] },
     brinewick: { name: "JOSS'S BAIT & SUPPLY", items: ['potion', 'hipotion', 'ether', 'antidote', 'fuel'], weapons: 0, armors: ['arm1'] },
     ember:     { name: "RURIK'S FORGE", items: ['potion', 'fuel'], weapons: 2, armors: ['arm2', 'arm3'] },
+    silvergrove: { name: "QUILL'S STALL · THE SILVER GROVE", items: ['veil', 'elixir', 'hipotion', 'feather', 'fuel'], weapons: 0, armors: ['arm5', 'arm6', 'arm7'] },
     halcyon:   { name: 'HALCYON QUARTERMASTER', items: ['hipotion', 'ether', 'feather', 'fuel', 'elixir', 'smoke'], weaponIds: ['blades1', 'blades2', 'blades3', 'sword3', 'bow2', 'spear3', 'lamp3'], armors: ['arm4'] }
 };
 let shopOpen = null;
@@ -5082,7 +5099,7 @@ function renderShop() {
         });
     });
     S.armors.forEach(id => { const A = ARMORS[id];
-        row(A.name, `Armor for anyone: DEF +${A.def}`, A.price, `x${OWNED.armors[id] || 0}`, () => {
+        row(A.name, `Armor for anyone: DEF +${A.def}${A.mdef ? ` · MAGIC DEF ${A.mdef}% (spells hit that much softer)` : ''}`, A.price, `x${OWNED.armors[id] || 0}`, () => {
             OWNED.armors[id] = (OWNED.armors[id] || 0) + 1;
             const weakest = roster().map(c => c.key).sort((a, b) => aDef(a) - aDef(b))[0];
             if (A.def > aDef(weakest)) { EQUIP[weakest].armor = id; showDialogue(`${weakest === 'kaelen' ? 'Ambrose' : ALLY_DEFS[weakest].name} puts on the ${A.name}.`, 'SHOP'); }
@@ -5596,6 +5613,7 @@ function zoneBattle(f) {
 function updateZoneFoes(dt) {
     if (!currentZone || inCombat) return;
     ZONE_FOES.forEach(f => {
+        if (f.model) { f.model.root.visible = f.zone === currentZone.key && f.alive; f.a.mesh.visible = false; if (f.model.root.visible) { const p = f.a.mesh.position; f.model.root.position.set(p.x, 0.4 + Math.sin(time * 1.6) * 0.2, p.z); animSilverElf(f.model, time, {}); } }
         if (f.zone !== currentZone.key || !f.alive) return;
         const x = f.x + Math.sin(time * 0.6 + f.ph) * f.patrol, a = f.a;
         placeActor(a, x, f.z);
@@ -6014,6 +6032,7 @@ function animate() {
                 a.mesh.material.map = now < u.poseUntil ? (a.atkR || ready) : now < u.hurtUntil ? (a.hurtR || ready) : ready;
             });
             B.foes.forEach(f => {
+                if (f.model) { f.model.root.visible = !f.dead && f.hp > 0; f.actor.mesh.visible = false; if (f.model.root.visible) { const p = f.actor.mesh.position; f.model.root.position.set(p.x, 0.3 + Math.sin(time * 1.6) * 0.18, p.z); f.model.root.rotation.y = -0.85; animSilverElf(f.model, time, { cast: now < f.poseUntil, hurt: now < f.flashUntil }); } }
                 if (f.dead) return;
                 const T = f.tex, a = f.actor;
                 a.mesh.material.map = now < f.flashUntil ? T.flash : now < f.poseUntil ? T.attack : T.idle[Math.floor(time * 2 + f.slot) % 2];
@@ -8250,6 +8269,91 @@ function fieldBoss(FB) {
         } }));
 }
 
+// ---------- THE SILVER ELF in full 3D (built from primitives; the same part list renders her concept image) ----------
+const SILVER_ELF_PARTS = [
+    ['body','cyl',[1.15,2.1,5,14],[0,2.6,0],[0,0,0],0x1e2a5a,0],
+    ['body','cyl',[2.12,2.18,0.28,14],[0,0.2,0],[0,0,0],0xc9d8ff,0],
+    ['body','box',[0.55,4.7,0.12],[0,2.7,1.62],[-10.5,0,0],0xc9d8ff,0],
+    ['body','oct',[0.12,0.12,0.12],[0.549668,1,1.77693],[0,0,0],0xffffff,1],
+    ['body','oct',[0.12,0.12,0.12],[1.40609,2.1,0.906554],[0,0,0],0xffffff,1],
+    ['body','oct',[0.12,0.12,0.12],[1.47432,3.2,-0.185955],[0,0,0],0xffffff,1],
+    ['body','oct',[0.12,0.12,0.12],[1.26403,1,-1.36449],[0,0,0],0xffffff,1],
+    ['body','oct',[0.12,0.12,0.12],[0.0820542,2.1,-1.67099],[0,0,0],0xffffff,1],
+    ['body','oct',[0.12,0.12,0.12],[-0.898202,3.2,-1.18382],[0,0,0],0xffffff,1],
+    ['body','oct',[0.12,0.12,0.12],[-1.8137,1,-0.412437],[0,0,0],0xffffff,1],
+    ['body','oct',[0.12,0.12,0.12],[-1.48814,2.1,0.764432],[0,0,0],0xffffff,1],
+    ['body','oct',[0.12,0.12,0.12],[-0.576118,3.2,1.36978],[0,0,0],0xffffff,1],
+    ['body','cyl',[0.95,1.12,2.3,12],[0,6.2,0],[0,0,0],0x1e2a5a,0],
+    ['body','cyl',[1.16,1.16,0.34,12],[0,5.15,0],[0,0,0],0xc9d8ff,0],
+    ['body','oct',[0.22,0.34,0.12],[0,5.15,1.17],[0,0,0],0x9fd2ff,1],
+    ['body','cyl',[0.62,1.55,0.95,12],[0,7.35,0],[0,0,0],0xc9d8ff,0],
+    ['body','cyl',[0.78,0.7,0.85,12],[0,8.05,-0.12],[0,0,0],0x1e2a5a,0],
+    ['body','cyl',[0.8,0.8,0.1,12],[0,8.47,-0.12],[0,0,0],0xc9d8ff,0],
+    ['body','sph',[0.58,0.36,0.55],[-1.22,7.5,0],[0,0,0],0xc9d8ff,0],
+    ['body','sph',[0.58,0.36,0.55],[1.22,7.5,0],[0,0,0],0xc9d8ff,0],
+    ['body','cyl',[0.3,0.32,0.6,8],[0,8.15,0.05],[0,0,0],0xf6e8dc,0],
+    ['body','sph',[0.86,0.95,0.86],[0,8.95,0.05],[0,0,0],0xf6e8dc,0],
+    ['body','cone',[0.17,1.05,6],[-0.98,9.12,-0.05],[0,0,72],0xf6e8dc,0],
+    ['body','cone',[0.17,1.05,6],[0.98,9.12,-0.05],[0,0,-72],0xf6e8dc,0],
+    ['body','sph',[0.11,0.07,0.05],[-0.3,8.98,0.83],[0,0,0],0x7ad8ff,1],
+    ['body','sph',[0.11,0.07,0.05],[0.3,8.98,0.83],[0,0,0],0x7ad8ff,1],
+    ['hair','sph',[0.98,0.72,0.98],[0,9.42,-0.08],[0,0,0],0xdfe8f4,0],
+    ['hair','box',[1.5,0.42,0.3],[0,9.42,0.68],[-18,0,0],0xdfe8f4,0],
+    ['hair','box',[0.34,3.6,0.32],[-0.92,7.3,0.2],[8,0,-9],0xdfe8f4,0],
+    ['hair','box',[0.34,3.6,0.32],[0.92,7.3,0.2],[8,0,9],0xdfe8f4,0],
+    ['hair','box',[0.3,2.4,0.3],[-0.62,7,0.62],[14,0,-4],0xb8c6dc,0],
+    ['hair','box',[0.3,2.4,0.3],[0.62,7,0.62],[14,0,4],0xb8c6dc,0],
+    ['hair','box',[2.1,6.2,0.45],[0,6.3,-0.98],[7,0,0],0xdfe8f4,0],
+    ['hair','box',[1.5,1.4,0.4],[0,3.05,-1.4],[14,0,0],0xb8c6dc,0],
+    ['body','torus',[0.95,0.06,6,28],[0,9.42,0.02],[90,0,0],0xc9d8ff,0],
+    ['body','torus',[0.2,0.05,6,16],[0,9.55,0.95],[0,0,0],0x9fd2ff,1],
+    ['cape','box',[3.5,7.4,0.16],[0,4,-1.55],[7,0,0],0x141c40,0],
+    ['cape','box',[3.3,7.1,0.06],[0,4.05,-1.43],[7,0,0],0x0c1230,0],
+    ['cape','box',[0.16,6.6,1.6],[-1.78,4.2,-0.9],[5,0,4],0x141c40,0],
+    ['cape','box',[0.16,6.6,1.6],[1.78,4.2,-0.9],[5,0,-4],0x141c40,0],
+    ['armL','cyl',[0.36,0.58,2.4,10],[-1.32,6.1,0.05],[0,0,-16],0x1e2a5a,0],
+    ['armL','cyl',[0.6,0.6,0.18,10],[-1.66,4.95,0.05],[0,0,-16],0xc9d8ff,0],
+    ['armL','sph',[0.24,0.26,0.24],[-1.75,4.65,0.08],[0,0,0],0xf6e8dc,0],
+    ['armR','cyl',[0.36,0.58,2.3,10],[0.2,-0.95,0.35],[-35,0,18],0x1e2a5a,0],
+    ['armR','cyl',[0.6,0.6,0.18,10],[0.55,-1.95,1],[-35,0,18],0xc9d8ff,0],
+    ['armR','sph',[0.24,0.26,0.24],[0.62,-2.15,1.18],[0,0,0],0xf6e8dc,0],
+    ['armR','cyl',[0.09,0.11,9.6,8],[0.7,0.85,1.25],[0,0,-4],0x3a4a8a,0],
+    ['armR','cyl',[0.16,0.12,0.5,8],[1.02,5.45,1.25],[0,0,-4],0xc9d8ff,0],
+    ['armR','torus',[0.85,0.07,6,30],[1.03,6.45,1.25],[0,0,0],0xc9d8ff,0],
+    ['armR','torus',[0.62,0.035,6,30],[1.03,6.45,1.25],[0,0,0],0x9fd2ff,1],
+    ['armR','oct',[0.3,0.75,0.3],[1.03,6.45,1.25],[0,0,0],0x9fd2ff,1],
+    ['aura','torus',[2.6,0.04,6,48],[0,0,0],[90,0,0],0x9fd2ff,1],
+    ['aura','torus',[2.25,0.025,6,48],[0,0.05,0],[90,0,0],0xffffff,1],
+    ['aura','oct',[0.2,0.42,0.2],[2.6,0.3,0],[0,0,0],0xffffff,1],
+    ['aura','oct',[0.2,0.42,0.2],[-2.6,-0.3,0],[0,0,0],0x9fd2ff,1]
+];
+const SILVER_ELF_GROUPS = {  aura: [0,4.6,0,8,0,-6], body: [0,0,0,0,0,0], hair: [0,0,0,0,0,0], cape: [0,0,0,0,0,0], armL: [0,0,0,0,0,0], armR: [1.25,7,0.1,0,0,0] };
+
+const D2R = Math.PI / 180;
+function buildSilverElf(scale) {
+    const root = new THREE.Group(), groups = {}, mats = {};
+    Object.keys(SILVER_ELF_GROUPS).forEach(k => { const v = SILVER_ELF_GROUPS[k], g = new THREE.Group(); g.position.set(v[0], v[1], v[2]); g.rotation.set(v[3] * D2R, v[4] * D2R, v[5] * D2R); g.userData.r0 = [v[3] * D2R, v[4] * D2R, v[5] * D2R]; root.add(g); groups[k] = g; });
+    SILVER_ELF_PARTS.forEach(([g, k, d, p, r, col, em]) => {
+        const geo = k === 'cyl' ? new THREE.CylinderGeometry(d[0], d[1], d[2], d[3]) : k === 'cone' ? new THREE.ConeGeometry(d[0], d[1], d[2]) : k === 'sph' ? new THREE.SphereGeometry(1, 14, 10)
+            : k === 'oct' ? new THREE.OctahedronGeometry(1, 0) : k === 'torus' ? new THREE.TorusGeometry(d[0], d[1], d[2], d[3]) : new THREE.BoxGeometry(d[0], d[1], d[2]);
+        const key = col + ':' + em, mat = mats[key] || (mats[key] = em ? new THREE.MeshBasicMaterial({ color: col }) : new THREE.MeshStandardMaterial({ color: col, flatShading: true, roughness: 0.5, metalness: col === 0xc9d8ff ? 0.6 : 0.1 }));
+        const m = new THREE.Mesh(geo, mat);
+        if (k === 'sph' || k === 'oct') m.scale.set(d[0], d[1], d[2]);
+        m.position.set(p[0], p[1], p[2]); m.rotation.set(r[0] * D2R, r[1] * D2R, r[2] * D2R); m.castShadow = !em;
+        groups[g].add(m);
+    });
+    root.scale.setScalar(scale); root.userData.actor = true; root.visible = false; scene.add(root);
+    return { root: root, groups: groups, scale: scale };
+}
+function animSilverElf(E, t, o) {      // levitating idle, spinning rune ring, hair and cloak drifting, staff raised to cast
+    const g = E.groups, k = E.cast = (E.cast || 0) + ((o.cast ? 1 : 0) - (E.cast || 0)) * 0.15;
+    g.aura.rotation.set(g.aura.userData.r0[0], t * 1.3, g.aura.userData.r0[2]);
+    g.hair.rotation.x = Math.sin(t * 1.3) * 0.035 - k * 0.08; g.cape.rotation.x = Math.sin(t * 1.1 + 1) * 0.05 - k * 0.12;
+    g.armR.rotation.x = -1.15 * k + Math.sin(t * 0.8) * 0.04; g.armR.rotation.z = -0.25 * k;
+    E.root.scale.setScalar(E.scale * (o.hurt ? 1.04 : 1));
+}
+let SE_COMBAT = null;
+
 // ---------- BENEATH THE TITANS: a cave opens wherever a titan falls ----------
 Object.assign(BESTIARY, {
     vampire_thrall: { name: 'VAMPIRE THRALL', body: 'human', D: lookOf({ hair: '#141418', hairStyle: 'short', skin: '#e8dcd8', skinD: '#c8b8b4', top: '#2a0a10', robe: '#2a0a10', collar: '#a8101a', pants: '#14080a', blade: '#c8ccd8', bladeL: '#ffffff', hilt: '#3a0a10' }), hp: 3600, dmg: [170, 230], xp: 90, trait: 'siphon', trait2: 'evade' },
@@ -8288,7 +8392,7 @@ Object.assign(ENEMY_TYPES, {
         spells: [SPELL('BLOOD MOON HOWL', 'howl', 0.6, true, 'The howl freezes you where you stand.', 'chill')] },
     cv_sphinx: { name: 'THE SPHINX', hp: 26000, dmg: [190, 260], size: 1.9, tint: 0xffffff, boss: true, trait: 'armor', trait2: 'charge', xp: 1500, def: 90, mon: 'sphinx_m', spellEvery: 2,
         spells: [SPELL('THE UNANSWERED RIDDLE', 'riddle', 0.75, true, 'Golden glyphs ask a question nobody can answer.', 'chill')] },
-    cv_silverelf: { name: 'THE SILVER ELF', hp: 48000, dmg: [230, 290], size: 0.95, tint: 0xffffff, boss: true, trait: 'warded', trait2: 'regen', xp: 4000, def: 120, D: SILVER_ELF_D, spellEvery: 1,
+    cv_silverelf: { name: 'THE SILVER ELF', model3d: true, hp: 48000, dmg: [230, 290], size: 0.95, tint: 0xffffff, boss: true, trait: 'warded', trait2: 'regen', xp: 4000, def: 120, D: SILVER_ELF_D, spellEvery: 1,
         spells: [SPELL('MOONSILVER LANCE', 'lance', 1.8, false, 'A spear of pure moonlight, older than your kingdom.'), SPELL('AURORA CAGE', 'aurora', 0.9, true, 'The sky itself folds down around you.', 'chill'),
             SPELL('STARFALL OF AGES', 'starfall', 1.1, true, 'She calls down every star she has ever named.'), SPELL('THE LONG SILENCE', 'silence', 1.3, true, 'For one heartbeat, time forgets you exist.', 'chill')] }
 });
@@ -8374,7 +8478,7 @@ const CAVES = [
             fall: "A riddle... I cannot answer... Who are you, that you walk out of my tomb on your own two feet?" } },
     { fb: 'treant', key: 'cave_treant', name: 'THE SILVER GROVE BELOW', at: ELDER, dx: -22, dz: -16, biome: 'forest', stage: 'forest', floor: 0x1e2a3a, line: 0x9fd2ff, glow: 0x9fd2ff, rock: 0x3a4a5a,
         foes: [['spell_wraith', 'werewolf'], ['grimoire_golem', 'spell_wraith'], ['werewolf', 'werewolf', 'spell_wraith'], ['grimoire_golem', 'grimoire_golem']], human: {},
-        boss: { keys: ['cv_silverelf', 'grimoire_golem', 'spell_wraith'], human: SILVER_ELF_D, size: 1.2, name: 'THE SILVER ELF',
+        boss: { keys: ['cv_silverelf', 'grimoire_golem', 'spell_wraith'], human: SILVER_ELF_D, size: 1.2, model3d: true, name: 'THE SILVER ELF',
             pre: ["A thousand years I have kept this grove, and the library sleeping under its roots. You are the first to reach the bottom in three centuries.",
                 "Don't be flattered. I'm only curious what kind of magic you mortals still remember.",
                 ['@', "We didn't come to steal your books."], "Everyone who burns books says that first.",
@@ -8411,7 +8515,15 @@ CAVES.forEach((C, i) => {
     (C.minis || []).forEach(m => zoneFoe(C.key, m.keys, Z.x + m.dx, Z.z + m.dz, { human: m.human, mon: m.mon, size: m.size, patrol: 0, name: m.name, pre: m.pre }));
     const B0 = C.boss;
     Z.boss = zoneFoe(C.key, B0.keys, Z.x, Z.z - 34, { human: B0.human, mon: B0.mon, size: B0.size, patrol: 0, boss: true, name: B0.name, pre: B0.pre });
+    if (B0.model3d) Z.boss.model = buildSilverElf(0.55);
     zoneExit(Z, Z.x, Z.z + 43, 'CLIMB BACK TO THE SURFACE');
+    if (C.key === 'cave_treant') {       // Quill keeps a stall just inside the entrance
+        const qx = Z.x + 9, qz = Z.z + 35, q = makeActor(NPC_SETS.hermit, 3.4, 0.85); placeActor(q, qx, qz); addCirc(qx, qz, 0.8);
+        const stall = new THREE.Mesh(mergeGeos([[gBox(4.4, 1.1, 1.6, 0, 0.55, 0), 0x4a3524], [gBox(4.8, 0.15, 2.0, 0, 3.2, 0), 0x3a4a8a], [gBox(0.2, 3.2, 0.2, -2.2, 1.6, 0.8), 0x4a3524], [gBox(0.2, 3.2, 0.2, 2.2, 1.6, 0.8), 0x4a3524], [gBox(0.6, 0.6, 0.6, -1.2, 1.4, 0), 0x9fd2ff], [gBox(0.5, 0.7, 0.4, 1.1, 1.45, 0), 0xc9d8ff]]), matProp);
+        stall.position.set(qx + 3.6, 0, qz - 0.6); scene.add(stall); addBox(qx + 3.6, qz - 0.6, 4.4, 1.6); makeGlow(qx + 3.6, 2.2, qz, 0x9fd2ff, 3.5, 0.2);
+        INTERACTS.push({ x: qx, z: qz + 1, r: 3.2, label: "[E] SHOP: QUILL THE ARCHIVIST", act: () => playDialogue([{ s: 'QUILL', t: "Going down to see her? Then you'll want armor that turns magic, and a veil or three. She doesn't miss." },
+            { s: 'QUILL', t: "Veils of the Unwritten: one thousand gold apiece. For three turns, nothing in this world can touch you. Not even her." }], () => openShop('silvergrove')) });
+    }
 });
 async function caveReveal(FB) {
     const C = CAVES.find(c => c.fb === FB.k);
