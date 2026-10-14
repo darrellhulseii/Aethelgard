@@ -210,31 +210,37 @@
         /* ---------- title screen, settings, save toast ---------- */
         #canvas-container canvas { filter: brightness(var(--bright, 1)); }
         #canvas-container.sepia canvas { filter: sepia(0.85) contrast(0.95) brightness(calc(0.9 * var(--bright, 1))); }
-        #title-screen { position: absolute; inset: 0; z-index: 60; display: flex; align-items: center; justify-content: center; overflow: hidden;
-            background: radial-gradient(ellipse at 50% 120%, rgba(30, 60, 110, 0.55), rgba(4, 6, 16, 0.92) 60%), linear-gradient(#03040b, #0a1022); transition: opacity 0.9s ease; }
+        #title-screen { position: absolute; inset: 0; z-index: 60; display: flex; flex-direction: column; align-items: center; justify-content: space-between; overflow: hidden;
+            background: linear-gradient(180deg, rgba(20, 60, 130, 0.28) 0%, rgba(0, 0, 0, 0) 34%, rgba(0, 0, 0, 0) 62%, rgba(10, 30, 70, 0.35) 100%); transition: opacity 0.9s ease; }
         #title-screen.out { opacity: 0; pointer-events: none; }
-        #title-screen .stars { position: absolute; inset: -50%; background-image:
-            radial-gradient(1px 1px at 12% 18%, #fff, transparent), radial-gradient(1px 1px at 72% 12%, #cfe8ff, transparent), radial-gradient(1.5px 1.5px at 38% 42%, #fff, transparent),
-            radial-gradient(1px 1px at 86% 58%, #fff, transparent), radial-gradient(1px 1px at 22% 76%, #9fd2ff, transparent), radial-gradient(1.5px 1.5px at 58% 84%, #fff, transparent),
-            radial-gradient(1px 1px at 5% 50%, #fff, transparent), radial-gradient(1px 1px at 94% 30%, #fff, transparent);
-            background-size: 340px 340px; animation: drift 120s linear infinite; opacity: 0.8; }
-        @keyframes drift { to { transform: translate(340px, 170px); } }
-        #title-screen .ember { position: absolute; bottom: -10px; width: 4px; height: 4px; border-radius: 50%; background: #ffcf7a; box-shadow: 0 0 8px 2px rgba(255, 170, 60, 0.6); animation: rise linear infinite; opacity: 0; }
-        @keyframes rise { 0% { transform: translateY(0) translateX(0); opacity: 0; } 10% { opacity: 0.9; } 100% { transform: translateY(-105vh) translateX(40px); opacity: 0; } }
-        .t-inner { position: relative; text-align: center; padding: 0 16px; width: min(560px, 100%); }
-        .t-kicker { font-family: 'Cinzel', Georgia, serif; letter-spacing: 0.5em; font-size: 11px; color: #9fb4d8; margin-bottom: 10px; }
-        .t-title { font-family: 'Cinzel', Georgia, serif; font-weight: 700; font-size: clamp(38px, 10vw, 76px); letter-spacing: 0.08em; color: #eaf4ff;
-            text-shadow: 0 0 18px rgba(0, 229, 255, 0.45), 0 0 60px rgba(58, 117, 196, 0.5); line-height: 1; }
-        .t-sub { font-family: Georgia, serif; font-style: italic; color: #c9d6ea; font-size: clamp(14px, 3.6vw, 19px); margin-top: 10px; }
-        .t-rule { width: 180px; height: 1px; margin: 22px auto 26px; background: linear-gradient(90deg, transparent, #f1c40f, transparent); }
-        .t-menu { display: flex; flex-direction: column; gap: 10px; align-items: center; }
-        .t-menu button { width: min(300px, 100%); padding: 12px 16px; font-family: 'Cinzel', Georgia, serif; font-size: 16px; letter-spacing: 0.18em; color: #e0f0ff;
-            background: rgba(12, 20, 40, 0.6); border: 1px solid rgba(58, 117, 196, 0.5); border-radius: 4px; cursor: pointer; transition: all 0.2s; text-align: center; }
-        .t-menu button small { display: block; font-family: 'Courier New', monospace; font-size: 10px; letter-spacing: 0.05em; color: #8fa3c4; margin-top: 4px; }
-        .t-menu button:hover:not(:disabled), .t-menu button.sel:not(:disabled) { border-color: var(--accent); color: #fff; background: rgba(0, 229, 255, 0.12); box-shadow: 0 0 16px rgba(0, 229, 255, 0.3); }
-        .t-menu button:disabled { opacity: 0.4; cursor: default; }
-        .t-foot { margin-top: 28px; font-size: 10px; color: #6f7f9c; line-height: 1.5; }
-        .t-press { margin-top: 16px; font-size: 11px; color: #8fa3c4; animation: blink 2.4s ease-in-out infinite; }
+        body.titled #ui-layer { visibility: hidden; }
+        #title-screen .ember { position: absolute; top: -20px; width: 10px; height: 7px; border-radius: 10px 0 10px 0; background: #ffd6e6; box-shadow: 0 0 4px rgba(255,255,255,0.8); animation: petal linear infinite; opacity: 0; }
+        #title-screen .ember.pg { width: 11px; height: 14px; border-radius: 1px; background: #fffaf0; box-shadow: 0 0 6px rgba(255,240,200,0.9); }
+        @keyframes petal { 0% { transform: translate(0, 0) rotate(0deg); opacity: 0; } 8% { opacity: 1; } 100% { transform: translate(-38vw, 108vh) rotate(720deg); opacity: 0; } }
+        .t-logo { position: relative; margin-top: clamp(28px, 7vh, 70px); text-align: center; padding: 0 16px; }
+        .t-swoosh { position: absolute; left: 50%; top: -18%; width: 128%; transform: translateX(-50%); pointer-events: none; }
+        .t-title { position: relative; font-family: 'Cinzel Decorative', 'Cinzel', Georgia, serif; font-weight: 900; font-size: clamp(42px, 12vw, 110px); line-height: 1; letter-spacing: 0.02em;
+            background: linear-gradient(100deg, #1d4f9a 0%, #2f7fd0 35%, #9fe0ff 48%, #ffffff 50%, #9fe0ff 52%, #2f7fd0 65%, #1d4f9a 100%); background-size: 200% 100%;
+            -webkit-background-clip: text; background-clip: text; color: transparent; animation: tshine 6s ease-in-out infinite;
+            filter: drop-shadow(0 3px 0 #ffffff) drop-shadow(0 0 2px #ffffff) drop-shadow(0 8px 14px rgba(20, 50, 110, 0.5)); }
+        @keyframes tshine { 0% { background-position: -200% 0; } 55%, 100% { background-position: 200% 0; } }
+        .t-glint { position: absolute; right: 4%; top: -4px; width: 24px; height: 24px; background: radial-gradient(circle, #fff 0%, rgba(255,255,255,0) 70%);
+            clip-path: polygon(50% 0, 58% 42%, 100% 50%, 58% 58%, 50% 100%, 42% 58%, 0 50%, 42% 42%); animation: tglint 4s ease-in-out infinite; }
+        @keyframes tglint { 0%, 70%, 100% { opacity: 0; transform: scale(0.4) rotate(0deg); } 80% { opacity: 1; transform: scale(1.1) rotate(45deg); } 90% { opacity: 0; transform: scale(0.4) rotate(90deg); } }
+        .t-sub { display: inline-block; margin-top: 8px; padding: 3px 34px; font-family: 'Cormorant Garamond', Georgia, serif; font-style: italic; font-weight: 700; color: #6a1f2a;
+            font-size: clamp(17px, 4.4vw, 32px); background: linear-gradient(90deg, rgba(255,255,255,0), rgba(255,255,255,0.92) 16%, rgba(255,255,255,0.92) 84%, rgba(255,255,255,0)); }
+        .t-inner { position: relative; text-align: center; padding: 0 16px 10px; width: min(560px, 100%); }
+        .t-menu { display: flex; flex-direction: column; gap: 2px; align-items: center; }
+        .t-menu button { position: relative; min-height: 44px; padding: 6px 22px; font-family: 'Quicksand', sans-serif; font-weight: 700; font-size: clamp(19px, 4.8vw, 25px); letter-spacing: 0.02em;
+            color: #ffffff; background: transparent; border: 0; cursor: pointer; text-shadow: 0 2px 6px rgba(20, 40, 90, 0.8), 0 0 2px rgba(20, 40, 90, 0.95); transition: color 0.2s; }
+        .t-menu button small { display: block; font-family: 'Quicksand', sans-serif; font-size: 11px; font-weight: 600; color: #e6f0ff; margin-top: 0; }
+        .t-menu button.sel:not(:disabled), .t-menu button:hover:not(:disabled) { color: #fff3b0; }
+        .t-menu button.sel:not(:disabled)::before { content: ''; position: absolute; left: -10px; top: 13px; width: 16px; height: 16px; transform: rotate(45deg);
+            background: linear-gradient(135deg, #f6c945 0 30%, #2f7fd0 30% 100%); border: 2px solid #fff; animation: tbob 1.2s ease-in-out infinite; }
+        @keyframes tbob { 0%, 100% { margin-left: 0; } 50% { margin-left: -6px; } }
+        .t-menu button:disabled { opacity: 0.45; cursor: default; }
+        .t-foot { margin-top: 10px; font-family: 'Quicksand', sans-serif; font-weight: 600; font-size: 10px; color: #ffffff; line-height: 1.5; text-shadow: 0 1px 3px rgba(20, 40, 90, 0.9); }
+        .t-press { margin-top: 6px; font-family: 'Quicksand', sans-serif; font-weight: 600; font-size: 11px; color: #ffffff; text-shadow: 0 1px 3px rgba(20, 40, 90, 0.9); animation: blink 2.4s ease-in-out infinite; }
         @keyframes blink { 50% { opacity: 0.35; } }
         #settings-panel, #confirm-panel { position: absolute; inset: 0; z-index: 70; display: none; align-items: center; justify-content: center; background: rgba(2, 4, 10, 0.7); padding: 16px; }
         .set-card { width: min(420px, 100%); background: var(--hud-bg); border: 1px solid var(--hud-border); box-shadow: 0 0 20px var(--hud-glow); border-radius: 6px; padding: 18px; color: var(--hud-text); }
@@ -253,7 +259,7 @@
         .menu-row button { flex: 1; text-align: center; }
     </style>
     <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700&family=Cinzel+Decorative:wght@700;900&family=Cormorant+Garamond:ital,wght@1,700&family=Quicksand:wght@600;700&display=swap" rel="stylesheet">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 </head>
 <body>
@@ -348,16 +354,17 @@
 
     <div id="fade"></div>
     <div id="title-screen">
-        <div class="stars"></div>
-        <div class="t-inner">
-            <div class="t-kicker">A PHILOSOPHICAL JOURNEY</div>
-            <div class="t-title">AETHELGARD</div>
+        <div class="t-logo">
+            <svg class="t-swoosh" viewBox="0 0 700 120" aria-hidden="true"><path d="M30 100 C120 20 260 10 350 40 C440 10 580 20 670 100" fill="none" stroke="#ffffff" stroke-width="5" stroke-linecap="round"/><path d="M60 104 C150 44 270 34 350 60 C430 34 550 44 640 104" fill="none" stroke="#f6c3d8" stroke-width="3" stroke-linecap="round"/><path d="M350 6 C340 26 340 34 350 44 C360 34 360 26 350 6 Z" fill="#f6c945"/></svg>
+            <div class="t-title">Aethelgard</div>
+            <div class="t-glint"></div>
             <div class="t-sub">The Search for Meaning</div>
-            <div class="t-rule"></div>
+        </div>
+        <div class="t-inner">
             <div class="t-menu">
-                <button id="t-new" onclick="titleNew()">NEW GAME</button>
-                <button id="t-load" onclick="titleLoad()">LOAD GAME<small id="t-load-info">No save yet</small></button>
-                <button id="t-set" onclick="openSettings()">SETTINGS</button>
+                <button id="t-new" onclick="titleNew()">New Game</button>
+                <button id="t-load" onclick="titleLoad()">Load Game<small id="t-load-info">No save yet</small></button>
+                <button id="t-set" onclick="openSettings()">Settings</button>
             </div>
             <div class="t-press">&#8593; &#8595; to choose &middot; ENTER to select</div>
             <div class="t-foot">Music for scenes of Ambrose's father: Fr&eacute;d&eacute;ric Chopin, Ballade No. 1 in G minor, Op. 23 (1835, public domain).<br>Note data from the Mutopia Project edition (CC BY-SA 4.0). Boss battles: W. A. Mozart, Symphony No. 25 in G minor, K. 183, I. Allegro con brio (1773, public domain).</div>
@@ -6037,6 +6044,8 @@ function animate() {
 
     if (CS.on) {
         updateCutscene(dt);
+    } else if (TS && TS.on && TITLE.on) {
+        updateTitleScene(dt);
     } else if (inCombat) {
         const now = performance.now();
         if (B) {
@@ -8761,6 +8770,62 @@ function loadGame() {
 
 // ---------- title screen ----------
 const TITLE = { on: true, sel: 0 };
+// The title is filmed live in the game world: Ambrose, Lira and the Silver Elf seen from behind on the hill road south of Valkora,
+// AEGIS and ARGENT standing guard on either side, a bright anime-blue sky, drifting clouds and falling petals.
+var TS = { built: false, on: false, x: 4, z: 58 };
+function titleScene(on) {
+    if (on && !TS.built) {
+        TS.built = true;
+        const X = TS.x, Z = TS.z, mk = k => { const a = makeActor(humanSet(Object.assign({}, D0, ALLY_DEFS[k].look)), 3.4, 0.85); a.dir = 'up'; return a; };
+        TS.lira = mk('lira'); TS.elf = buildSilverElf(0.36);
+        TS.aegis = makeGearActor('kaelen', 14, 3.4); TS.argent = makeGearActor('silverelf', 14, 3.4);
+        TS.clouds = [];
+        for (let i = 0; i < 9; i++) {
+            const c = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex, color: 0xffffff, transparent: true, opacity: 0.85, depthWrite: false, fog: false }));
+            c.scale.set(70 + Math.random() * 60, 22 + Math.random() * 14, 1); c.userData.p = { x: X - 160 + i * 40 + Math.random() * 20, y: 34 + Math.random() * 26, z: Z - 150 - Math.random() * 80, v: 1.5 + Math.random() * 2 };
+            scene.add(c); TS.clouds.push(c);
+        }
+    }
+    if (!TS.built) return;
+    TS.on = on;
+    [TS.lira, TS.aegis, TS.argent].forEach(a => { a.mesh.visible = on; a.blob.visible = on; });
+    TS.elf.root.visible = on; TS.clouds.forEach(c => { c.visible = on; });
+    if (on) {
+        TS.back = { x: hero.mesh.position.x, z: hero.mesh.position.z };
+        const X = TS.x, Z = TS.z;
+        placeActor(hero, X, Z); hero.dir = 'up'; setActorFrame(hero);
+        placeActor(TS.lira, X - 2.4, Z + 0.7); setActorFrame(TS.lira);
+        placeActor(TS.aegis, X - 9, Z - 8); placeActor(TS.argent, X + 10, Z - 9);
+        TS.saved = { amb: ambientLight.intensity, sun: sun.intensity };
+        scene.background.set(0x7cc0f4); scene.fog.color.set(0xcfe8ff); scene.fog.density = 0.0042;
+        ambientLight.intensity = 1.05; sun.intensity = 1.15; stars.visible = false; moon.visible = false;
+    } else {
+        if (TS.saved) { ambientLight.intensity = TS.saved.amb; sun.intensity = TS.saved.sun; }
+        if (TS.back) placeActor(hero, TS.back.x, TS.back.z);
+        hero.dir = 'down'; applyEnv(); camera.fov = 45; camera.updateProjectionMatrix();
+    }
+}
+function updateTitleScene(dt) {
+    const X = TS.x, Z = TS.z, t = time;
+    // a slow crane around the party, looking out over Valkora toward the far mountains
+    // framing adapts to the screen: on a tall phone everyone stands closer together so nobody falls off the edge
+    const wide = camera.aspect >= 1, sw = Math.sin(t * 0.12) * (wide ? 4 : 1), gy = groundAt(X, Z);
+    camera.position.set(X + (wide ? 3 : 1) + sw, gy + 3.6 + Math.sin(t * 0.17) * 0.4, Z + (wide ? 11.5 : 12.5) - Math.abs(sw) * 0.35);
+    camera.lookAt(X + (wide ? -1 : 0.5) + sw * 0.5, gy + (wide ? 5.5 : 6.5), Z - 40);
+    placeActor(TS.lira, X - (wide ? 2.4 : 1.6), Z + 0.7);
+    placeActor(TS.aegis, X - (wide ? 9 : 3.8), Z - (wide ? 8 : 15)); placeActor(TS.argent, X + (wide ? 10 : 5.2), Z - (wide ? 9 : 17));
+    camera.fov = 52; camera.updateProjectionMatrix();
+    hero.dir = 'up'; setActorFrame(hero);
+    TS.lira.mesh.material.map = TS.lira.frames.up[0];
+    const ex = X + (wide ? 2.6 : 1.9), ez = Z + 0.5;
+    TS.elf.root.visible = true; TS.elf.root.position.set(ex, groundAt(ex, ez) + 0.35 + Math.sin(t * 1.6) * 0.12, ez); TS.elf.root.rotation.set(0, Math.PI, 0);
+    animSilverElf(TS.elf, t, { cast: Math.sin(t * 0.5) > 0.93 });
+    const flex = (t % 9) < 1.2;     // every few seconds one gear powers up
+    animGear(TS.aegis, { dir: 'down', atk: flex && Math.floor(t / 9) % 2 === 0 });
+    animGear(TS.argent, { dir: 'down', atk: flex && Math.floor(t / 9) % 2 === 1 });
+    TS.clouds.forEach(c => { const p = c.userData.p; p.x += p.v * dt; if (p.x > X + 200) p.x = X - 200; c.position.set(p.x, p.y, p.z); });
+}
+
 function titleButtons() { return ['t-new', 't-load', 't-set'].map($); }
 function titleRefresh() {
     const d = readSave(), lb = $('t-load');
@@ -8773,12 +8838,15 @@ function showTitle() {
     TITLE.on = true; $('title-screen').classList.remove('out'); $('title-screen').style.display = 'flex';
     document.body.classList.add('titled');
     const T = $('title-screen');
-    for (let i = 0; i < 18; i++) { const e = document.createElement('div'); e.className = 'ember'; e.style.left = (Math.random() * 100) + '%'; e.style.animationDuration = (9 + Math.random() * 10) + 's'; e.style.animationDelay = (-Math.random() * 18) + 's'; T.appendChild(e); }
+    T.querySelectorAll('.ember').forEach(e => e.remove());
+    titleScene(true);
+    for (let i = 0; i < 18; i++) { const e = document.createElement('div'); e.className = 'ember' + (i % 6 === 0 ? ' pg' : ''); e.style.left = (30 + Math.random() * 90) + '%'; e.style.left = (Math.random() * 100) + '%'; e.style.animationDuration = (9 + Math.random() * 10) + 's'; e.style.animationDelay = (-Math.random() * 18) + 's'; T.appendChild(e); }
     Music.setMood('ballade');
     titleRefresh();
 }
 function hideTitle() {
     TITLE.on = false; $('title-screen').classList.add('out'); document.body.classList.remove('titled');
+    titleScene(false);
     setTimeout(() => { $('title-screen').style.display = 'none'; }, 900);
 }
 function titleNew() {
