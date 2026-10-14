@@ -2524,7 +2524,7 @@ function zoneScatter(Z, geo, mat, n, smin, smax, solid, keepOut) {
 }
 function zoneFoe(zone, keys, x, z, o) {
     o = o || {};
-    const tex = o.human ? null : monsterTex(keys[0]);
+    const tex = o.human ? null : monsterTex(o.mon || keys[0]);
     const a = o.human ? makeActor(humanSet(o.human), 3.6, 0.9) : makeActor({ down: tex.idle }, (o.size || 1) * 4.6, 1.4);
     placeActor(a, x, z);
     const f = Object.assign({ zone: zone, keys: keys, x: x, z: z, a: a, alive: true, ph: Math.random() * 6, patrol: o.patrol === undefined ? 3 : o.patrol }, o);
@@ -4478,7 +4478,7 @@ function strikeUnit(f, u, mult) {
     }
     const a = f.actor, sx = f.home.x, sz = f.home.z, tp = vis(u).mesh.position;
     f.poseUntil = performance.now() + 450;
-    tween(0.45, k => { const e = Math.sin(k * Math.PI); a.mesh.position.x = sx + (tp.x + 1.8 - sx) * e * 0.8; a.mesh.position.z = sz + (tp.z - sz) * e * 0.8; a.blob.position.x = a.mesh.position.x; a.blob.position.z = a.mesh.position.z; });
+    if (!f.noLunge) tween(0.45, k => { const e = Math.sin(k * Math.PI); a.mesh.position.x = sx + (tp.x + 1.8 - sx) * e * 0.8; a.mesh.position.z = sz + (tp.z - sz) * e * 0.8; a.blob.position.x = a.mesh.position.x; a.blob.position.z = a.mesh.position.z; });
     const bid = BID;
     setTimeout(() => {
         if (!live(bid)) return;
@@ -4515,6 +4515,7 @@ function foeAct(f, done) {
         showDialogue(lost ? `${f.name} is stunned mid-charge! The attack fizzles.` : `${f.name} reels and loses its turn!`);
         setTimeout(done, 700); return;
     }
+    if (f.spells && f.spells.length && f.turns % (f.spellEvery || 2) === 0) { castSpell(f, f.spells[Math.floor(f.turns / (f.spellEvery || 2) - 1) % f.spells.length], done); return; }
     if (HT(f, 'charge') && !f.charged && f.turns % 3 === 0) {
         f.charged = true;
         floatText('CHARGING', '#ff5a5a', FPOS(f), 1.3);
@@ -4658,16 +4659,19 @@ const battleMarks = (() => {
     const arrow = makeTextSprite('\u25BC', '#ffd24a', 1.0); arrow.visible = false; scene.add(arrow);
     return { ring: ring, arrow: arrow };
 })();
+const FOE_HP_K = 1.6, FOE_DMG_K = 1.5;      // every normal enemy: +60% HP, +50% damage
+const BOSS_HP_K = 1.5, BOSS_DMG_K = 3;       // every boss: +50% HP and THREE times the damage
 function foeFromKey(key, slot) {
     const lv = playerStats.lv;
     let E;
     if (ENEMY_TYPES[key]) {
         E = Object.assign({ tex: key === 'warlord' ? MECHA : ENEMY_TYPES[key].mon ? monsterTex(ENEMY_TYPES[key].mon) : ENEMY_TYPES[key].D ? humanFoeTex(key, ENEMY_TYPES[key].D) : beauTex(), def: key === 'warlord' ? 40 : 30 }, ENEMY_TYPES[key]);
         if (E.field) { const k = 1 + 0.06 * (lv - 1), kd = 1 + 0.05 * (lv - 1); E.hp = Math.round(E.hp * k); E.dmg = [E.dmg[0] * kd, E.dmg[1] * kd]; }
+        E.hp = Math.round(E.hp * BOSS_HP_K); E.dmg = [E.dmg[0] * BOSS_DMG_K, E.dmg[1] * BOSS_DMG_K];
     }
     else {
         const Bk = BESTIARY[key], sh = (1 + 0.12 * (lv - 1)) * (1 + 0.15 * party.length), sd = 1 + 0.08 * (lv - 1);
-        E = { name: Bk.name, hp: Math.round(Bk.hp * sh), dmg: [Bk.dmg[0] * sd, Bk.dmg[1] * sd], size: Bk.size || (Bk.body === 'human' ? 0.72 : 1), tint: 0xffffff, boss: false,
+        E = { name: Bk.name, hp: Math.round(Bk.hp * sh * FOE_HP_K), dmg: [Bk.dmg[0] * sd * FOE_DMG_K, Bk.dmg[1] * sd * FOE_DMG_K], size: Bk.size || (Bk.body === 'human' ? 0.72 : 1), tint: 0xffffff, boss: false,
             trait: Bk.trait, trait2: Bk.trait2, def: Bk.def !== undefined ? Bk.def : Bk.trait === 'armor' ? 30 : Bk.body === 'golem' ? 24 : 12, tex: Bk.body === 'human' ? humanFoeTex(key, Bk.D) : monsterTex(key), fly: !!Bk.fly, xp: Math.round(Bk.xp * (1 + 0.1 * (lv - 1))) };
     }
     E.dmg = [E.dmg[0], E.dmg[1]];
@@ -5541,6 +5545,7 @@ function enterZoneNow(key, keys) {
     if (!zoneReturn) zoneReturn = { x: hero.mesh.position.x, z: hero.mesh.position.z };
     if (RIDE.on) toggleRide(false, true);
     currentZone = Z;
+    if (Z.cave) ZONE_FOES.forEach(f => { if (f.zone !== Z.key) return; f.alive = f.boss ? !(story.caveDone || {})[Z.key] : true; f.preDone = false; f.a.mesh.visible = f.a.blob.visible = f.alive; });
     placeActor(hero, Z.spawn.x, Z.spawn.z); hero.dir = 'up';
     setControl(keys || null);
     applyEnv(); Music.setMood(worldMood());
@@ -5581,6 +5586,8 @@ function zoneGate(key) {
 }
 function zoneBattle(f) {
     const Z = currentZone;
+    if (f.pre && !f.preDone) { f.preDone = true; playDialogue(f.pre.map(p => Array.isArray(p) ? { s: p[0] === '@' ? SP(leaderKey()) : p[0], t: p[1] } : { s: f.name || 'BOSS', t: p }), () => zoneBattle(f)); return; }
+    f.preDone = false;
     startCombat(f.keys, Z.stage, {
         onWin: () => { f.alive = false; f.a.mesh.visible = false; f.a.blob.visible = false; if (f.boss) bossDown(Z.key); },
         onLose: () => { roster().forEach(c => { c.st.hp = c.st.maxHp; c.st.ep = c.st.maxEp; }); placeActor(hero, Z.spawn.x, Z.spawn.z); resetTrail(); showDialogue('You regroup at the entrance, bruised but breathing.'); }
@@ -5597,13 +5604,14 @@ function updateZoneFoes(dt) {
     });
 }
 function checkZoneContact() {
-    if (!currentZone || CS.on || inCombat) return false;
+    if (!currentZone || CS.on || inCombat || dlg) return false;
     const p = hero.mesh.position;
     const f = ZONE_FOES.find(z => z.zone === currentZone.key && z.alive && Math.hypot(z.a.mesh.position.x - p.x, z.a.mesh.position.z - p.z) < (z.size || 1) * 2.4);
     if (f) { zoneBattle(f); return true; }
     return false;
 }
 function bossDown(key) {
+    if (key.indexOf('cave_') === 0) { caveCleared(key); return; }
     if (key === 'ashen') { Q.ashes.boss = true; showDialogue('The Torchbearer falls. His torch hisses out in the sand.', 'CASSIUS'); checkAshes(); }
     if (key === 'glacier') { Q.brothers.boss = true; showDialogue('The Ice Colossus shatters into a thousand glittering pieces. Ivar\'s hammer lies beyond.', 'NILS'); }
 }
@@ -8238,8 +8246,196 @@ function fieldBoss(FB) {
         () => startCombat(['fb_' + FB.k].concat(FB.minions), FB.biome, { onWin: () => {
             story.fb = story.fb || {}; story.fb[FB.k] = true;
             bag.elixir = (bag.elixir || 0) + 1; bag.fuel = (bag.fuel || 0) + 2;
-            playDialogue([{ s: FB.human ? E.name : 'SYSTEM', t: E.fall }, { s: 'REWARD', t: giveReward(['Elixir x1, Gear Fuel x2.'], 1500) }], () => autoSave());
+            playDialogue([{ s: FB.human ? E.name : 'SYSTEM', t: E.fall }, { s: 'REWARD', t: giveReward(['Elixir x1, Gear Fuel x2.'], 1500) }], () => caveReveal(FB));
         } }));
+}
+
+// ---------- BENEATH THE TITANS: a cave opens wherever a titan falls ----------
+Object.assign(BESTIARY, {
+    vampire_thrall: { name: 'VAMPIRE THRALL', body: 'human', D: lookOf({ hair: '#141418', hairStyle: 'short', skin: '#e8dcd8', skinD: '#c8b8b4', top: '#2a0a10', robe: '#2a0a10', collar: '#a8101a', pants: '#14080a', blade: '#c8ccd8', bladeL: '#ffffff', hilt: '#3a0a10' }), hp: 3600, dmg: [170, 230], xp: 90, trait: 'siphon', trait2: 'evade' },
+    blood_bat:      { name: 'BLOOD BAT', body: 'flyer', fly: true, pal: ['#5a0a14', '#2a050a', '#a8202a', '#ff3b30', '#ffd24a'], hp: 2600, dmg: [160, 210], xp: 80, trait: 'siphon', trait2: 'double' },
+    crypt_ghoul:    { name: 'CRYPT GHOUL', body: 'beast', pal: ['#6a6a72', '#3a3a42', '#9a9aa6', '#b6ff5a', '#ff3b30'], hp: 3400, dmg: [165, 220], xp: 84, trait: 'poison', trait2: 'enrage' },
+    shade:          { name: 'SHADE OF THE DEAD', body: 'wisp', fly: true, pal: ['#5a6a8a', '#2a3a5a', '#aab8d8', '#5ac8ff', '#0a0a1a'], hp: 3000, dmg: [160, 215], xp: 82, trait: 'evade', trait2: 'siphon' },
+    hellhound:      { name: 'HOUND OF THE UNDERWORLD', body: 'beast', pal: ['#1a1a20', '#0a0a0e', '#3a3a44', '#5ac8ff', '#5ac8ff'], hp: 3800, dmg: [175, 235], xp: 92, trait: 'double', trait2: 'enrage', size: 1.25 },
+    gorgon_stheno:  { name: 'STHENO THE STRONG', body: 'human', D: lookOf({ hair: '#3a6a2a', hairStyle: 'long', skin: '#b8d0a0', skinD: '#98b080', top: '#6a5a2a', robe: '#6a5a2a', collar: '#c9a24a', pants: '#3a3a1a', blade: '#c9a24a', bladeL: '#fff0b0', hilt: '#5a3a1e' }), hp: 6000, dmg: [190, 250], xp: 160, trait: 'double', trait2: 'armor' },
+    gorgon_euryale: { name: 'EURYALE THE FAR-ROAMING', body: 'human', D: lookOf({ hair: '#2a5a4a', hairStyle: 'long', skin: '#a8d0b8', skinD: '#88b098', top: '#2a4a5a', robe: '#2a4a5a', collar: '#9fe8ff', pants: '#1a2a3a' }), hp: 6000, dmg: [185, 245], xp: 160, trait: 'evade', trait2: 'siphon' },
+    werewolf:       { name: 'WEREWOLF', body: 'beast', pal: ['#5a4632', '#3a2a1e', '#8a7050', '#d8d0c0', '#ffd24a'], hp: 3900, dmg: [180, 240], xp: 94, trait: 'double', trait2: 'enrage', size: 1.3 },
+    moon_wisp:      { name: 'MOON WISP', body: 'wisp', fly: true, pal: ['#e8f0ff', '#a8b8d8', '#ffffff', '#c9d8ff', '#1a2a4a'], hp: 2600, dmg: [150, 205], xp: 76, trait: 'chill', trait2: 'evade' },
+    lamia:          { name: 'LAMIA', body: 'human', D: lookOf({ hair: '#1a3a1a', hairStyle: 'long', skin: '#c8e0b0', skinD: '#a8c090', top: '#2f5a3a', robe: '#2f5a3a', collar: '#c9a24a', pants: '#1a3a2a' }), hp: 3300, dmg: [165, 225], xp: 86, trait: 'poison', trait2: 'siphon' },
+    scorpion_man:   { name: 'SCORPION-MAN', body: 'bug', tail: true, pal: ['#8a5a2a', '#5a3a1a', '#c08a4a', '#ffd24a', '#12162a'], hp: 3800, dmg: [170, 235], xp: 92, trait: 'armor', trait2: 'poison', size: 1.25 },
+    tomb_wraith:    { name: 'TOMB WRAITH', body: 'wisp', fly: true, pal: ['#d8b860', '#9a7a30', '#fff0c8', '#c26a1a', '#3a1a0a'], hp: 2800, dmg: [155, 210], xp: 80, trait: 'evade', trait2: 'chill' },
+    spell_wraith:   { name: 'SPELL WRAITH', body: 'wisp', fly: true, pal: ['#9a7aff', '#5a3ac0', '#e0d0ff', '#9fd2ff', '#140a2a'], hp: 3200, dmg: [170, 225], xp: 90, trait: 'warded', trait2: 'evade' },
+    grimoire_golem: { name: 'GRIMOIRE GOLEM', body: 'golem', pal: ['#3a2a5a', '#1e1438', '#5a4a8a', '#9fd2ff', '#e0d0ff'], hp: 4600, dmg: [180, 240], xp: 104, trait: 'warded', trait2: 'armor', size: 1.3 },
+    hydra_m:        { name: 'THE HYDRA', body: 'beast', pal: ['#2f6a3a', '#1a4022', '#4a9a5a', '#c9ff7a', '#ff3b30'], hp: 1, dmg: [1, 1], xp: 1, trait: 'none' },
+    lycaon_m:       { name: 'LYCAON', body: 'beast', pal: ['#4a4a56', '#2a2a32', '#8a8a9a', '#e8e8f0', '#ff3b30'], hp: 1, dmg: [1, 1], xp: 1, trait: 'none' },
+    sphinx_m:       { name: 'THE SPHINX', body: 'beast', pal: ['#c9a24a', '#8a6a2a', '#f0d080', '#2a8fd0', '#2a8fd0'], hp: 1, dmg: [1, 1], xp: 1, trait: 'none' }
+});
+const DRACULA_D = lookOf({ hair: '#e8e8e8', hairStyle: 'short', beard: '#e8e8e8', beardD: '#b8b8b8', skin: '#f0e6e0', skinD: '#d0c4bc', top: '#141418', robe: '#141418', collar: '#a8101a', trim: '#a8101a', trimD: '#6a0a10', pants: '#0e0e12', pauld: true });
+const HADES_D = lookOf({ hair: '#3a6aff', hairStyle: 'spiky', beard: '#1a1a3a', beardD: '#0e0e20', skin: '#c8c8d8', skinD: '#a8a8b8', top: '#141420', robe: '#1e1e3a', collar: '#5ac8ff', trim: '#5ac8ff', trimD: '#2a6aa8', pants: '#0e0e18', blade: '#2a2a3a', bladeL: '#5ac8ff', hilt: '#141420', pauld: true });
+const MEDUSA_D = lookOf({ hair: '#2f7a35', hairStyle: 'long', skin: '#b8d8a8', skinD: '#98b888', top: '#5a6a3a', robe: '#4a5a2a', collar: '#c9a24a', pants: '#2a3a1a' });
+const SILVER_ELF_D = lookOf({ hair: '#d8e4f0', hairStyle: 'long', skin: '#f6e8dc', skinD: '#dcc8b8', top: '#1e2a5a', robe: '#1e2a5a', collar: '#9fd2ff', trim: '#c9d8ff', trimD: '#7a8ac0', pants: '#141a3a', blade: '#c8d8ff', bladeL: '#ffffff', hilt: '#3a4a8a' });
+const SPELL = (name, fx, mult, all, q, after) => ({ name: name, fx: fx, mult: mult, all: all, q: q, after: after });
+Object.assign(ENEMY_TYPES, {
+    cv_dracula: { name: 'COUNT DRACULA', hp: 26000, dmg: [200, 260], size: 0.95, tint: 0xffffff, boss: true, trait: 'siphon', trait2: 'evade', xp: 1600, def: 70, D: DRACULA_D, spellEvery: 2,
+        spells: [SPELL('CHILDREN OF THE NIGHT', 'bats', 0.75, true, 'A storm of bats pours out of his cloak.'), SPELL('CRIMSON MIST', 'mist', 1.3, false, 'He becomes mist, and the mist has teeth.')] },
+    cv_hydra: { name: 'THE LERNAEAN HYDRA', hp: 18000, dmg: [180, 240], size: 1.9, tint: 0xffffff, boss: true, trait: 'regen', trait2: 'double', xp: 1100, def: 60, mon: 'hydra_m', spellEvery: 3,
+        spells: [SPELL('NINE HEADS', 'heads', 0.6, true, 'Cut one head off and two grow back.')] },
+    cv_medusa: { name: 'MEDUSA', hp: 14000, dmg: [190, 250], size: 0.9, tint: 0xffffff, boss: true, trait: 'warded', trait2: 'chill', xp: 1100, def: 60, D: MEDUSA_D, spellEvery: 2,
+        spells: [SPELL('STONE GAZE', 'gaze', 1.0, false, 'Do not look at her.', 'chill')] },
+    cv_hades: { name: 'HADES, LORD OF THE DEAD', hp: 30000, dmg: [210, 280], size: 1.0, tint: 0xffffff, boss: true, trait: 'charge', trait2: 'siphon', xp: 1800, def: 80, D: HADES_D, spellEvery: 2,
+        spells: [SPELL('RIVER OF SOULS', 'souls', 0.8, true, 'The Styx rises under your feet.'), SPELL('JUDGMENT OF THE DEAD', 'judgment', 1.6, false, 'Every soul is weighed. Yours is light.')] },
+    cv_lycaon: { name: 'LYCAON, THE FIRST WOLF', hp: 24000, dmg: [200, 270], size: 1.9, tint: 0xffffff, boss: true, trait: 'double', trait2: 'enrage', xp: 1500, def: 60, mon: 'lycaon_m', spellEvery: 3,
+        spells: [SPELL('BLOOD MOON HOWL', 'howl', 0.6, true, 'The howl freezes you where you stand.', 'chill')] },
+    cv_sphinx: { name: 'THE SPHINX', hp: 26000, dmg: [190, 260], size: 1.9, tint: 0xffffff, boss: true, trait: 'armor', trait2: 'charge', xp: 1500, def: 90, mon: 'sphinx_m', spellEvery: 2,
+        spells: [SPELL('THE UNANSWERED RIDDLE', 'riddle', 0.75, true, 'Golden glyphs ask a question nobody can answer.', 'chill')] },
+    cv_silverelf: { name: 'THE SILVER ELF', hp: 48000, dmg: [230, 290], size: 0.95, tint: 0xffffff, boss: true, trait: 'warded', trait2: 'regen', xp: 4000, def: 120, D: SILVER_ELF_D, spellEvery: 1,
+        spells: [SPELL('MOONSILVER LANCE', 'lance', 1.8, false, 'A spear of pure moonlight, older than your kingdom.'), SPELL('AURORA CAGE', 'aurora', 0.9, true, 'The sky itself folds down around you.', 'chill'),
+            SPELL('STARFALL OF AGES', 'starfall', 1.1, true, 'She calls down every star she has ever named.'), SPELL('THE LONG SILENCE', 'silence', 1.3, true, 'For one heartbeat, time forgets you exist.', 'chill')] }
+});
+// ---------- spell choreography: every boss spell is a full-screen event ----------
+const _fxAt = (bid, ms, fn) => setTimeout(() => { if (live(bid)) fn(); }, ms);
+const SPELL_FX = {
+    bats(f, T, cb, bid) { screenTint('#5a0a14', 0.45, 900); const F = FPOS(f); for (let i = 0; i < 26; i++) _fxAt(bid, i * 40, () => { const u = T[i % T.length], p = UPOS(u); projectile({ x: F.x + rr(-1, 1), y: F.y + rr(0, 2), z: F.z }, { x: p.x + rr(-0.8, 0.8), y: p.y + rr(-0.5, 1), z: p.z }, i % 3 ? 0x2a050a : 0xff3b30, 0.5, rr(1, 4), 0.9, () => particles(p, 0xa8202a, 4, { speed: 5 })); }); _fxAt(bid, 1250, () => { T.forEach(u => fxFlash(UPOS(u), 0xff3b30, 6, 0.4)); triggerCameraShake(1.2); cb(); }); },
+    mist(f, T, cb, bid) { const F = FPOS(f), p = UPOS(T[0]); f.actor.mesh.visible = false; for (let i = 0; i < 6; i++) _fxAt(bid, i * 90, () => particles({ x: F.x + (p.x - F.x) * i / 6, y: p.y, z: p.z }, 0xa8101a, 18, { speed: 3, grav: -1, life: 1.2, size: 1.6 })); _fxAt(bid, 650, () => { f.actor.mesh.visible = true; screenTint('#a8101a', 0.6, 300); fxFlash(p, 0xffffff, 10, 0.4); dirSlash(p, -0.4, 0xff3b30, 7, false); dirSlash(p, 0.2, 0xff3b30, 7, true); camPunch(5, 0.35); triggerCameraShake(1.8); cb(); }); },
+    heads(f, T, cb, bid) { const F = FPOS(f); for (let i = 0; i < 9; i++) _fxAt(bid, i * 110, () => { const u = T[i % T.length], p = UPOS(u); projectile({ x: F.x - 1, y: F.y + 2 + (i % 3), z: F.z }, p, i % 2 ? 0x4a9a5a : 0xc9ff7a, 0.3, 1.5, 1.4, () => { fxFlash(p, 0xc9ff7a, 5, 0.3); particles(p, 0xb6ff5a, 10, { speed: 6 }); triggerCameraShake(0.5); }); }); _fxAt(bid, 1200, cb); },
+    gaze(f, T, cb, bid) { const F = FPOS(f), p = UPOS(T[0]); screenTint('#3a5a3a', 0.5, 700); fxFlash({ x: F.x, y: F.y + 1, z: F.z }, 0xc9ff7a, 8, 0.6); _fxAt(bid, 350, () => { thrustFX({ x: F.x, y: F.y + 0.8 }, p, 0xc9ff7a, 1.2, 0.6); ringFX(p, 0x9a9aa6, 0.5, 6, 0.6, false); particles(p, 0x9a9aa6, 30, { speed: 4, grav: 6, size: 0.9 }); triggerCameraShake(1.2); cb(); }); },
+    souls(f, T, cb, bid) { screenTint('#0a1a3a', 0.6, 1200); T.forEach((u, i) => { const p = UPOS(u); _fxAt(bid, 150 + i * 120, () => ringFX({ x: p.x, y: GROUND + 0.1, z: p.z }, 0x5ac8ff, 3, 0.4, 0.5, true)); _fxAt(bid, 600 + i * 120, () => { beamFX({ x: p.x, y: GROUND, z: p.z }, 0x2a6aff, 16, 2.2, 0.9); beamFX({ x: p.x, y: GROUND, z: p.z }, 0x5ac8ff, 16, 0.9, 0.7); particles(p, 0x5ac8ff, 30, { speed: 6, up: 1.6, grav: -2, life: 1.2 }); triggerCameraShake(1.1); }); }); _fxAt(bid, 1100 + T.length * 120, cb); },
+    judgment(f, T, cb, bid) { const p = UPOS(T[0]); screenTint('#000000', 0.7, 500); _fxAt(bid, 400, () => { projectile(SKY_AT(p, 22), p, 0x5ac8ff, 0.3, 0, 3.2, () => { fxFlash(p, 0xffffff, 18, 0.6); fxFlash(p, 0x2a6aff, 24, 0.9); ringFX({ x: p.x, y: GROUND + 0.1, z: p.z }, 0x5ac8ff, 1, 16, 0.8, true); shockSphere(p, 0x5ac8ff, 9, 0.7); camPunch(7, 0.45); hitStop(220, 0.12); triggerCameraShake(2.6); cb(); }); }); },
+    howl(f, T, cb, bid) { const F = FPOS(f); screenTint('#5a0a0a', 0.35, 800); for (let i = 0; i < 4; i++) _fxAt(bid, i * 180, () => { ringFX(F, 0xe8e8f0, 1, 22, 0.7, false); triggerCameraShake(0.9); }); _fxAt(bid, 820, () => { T.forEach(u => particles(UPOS(u), 0xe8e8f0, 14, { speed: 7 })); cb(); }); },
+    riddle(f, T, cb, bid) { screenTint('#c9a24a', 0.35, 1000); T.forEach((u, i) => { const p = UPOS(u); _fxAt(bid, i * 140, () => { ringFX({ x: p.x, y: GROUND + 0.1, z: p.z }, 0xf0d080, 0.5, 4, 0.9, true); ringFX(p, 0xffd27a, 0.3, 3, 0.8, false); }); _fxAt(bid, 700 + i * 140, () => { beamFX({ x: p.x, y: GROUND, z: p.z }, 0xf0d080, 14, 1.6, 0.7); particles(p, 0xe0b060, 28, { speed: 5, up: 1.2, size: 0.8 }); triggerCameraShake(1); }); }); _fxAt(bid, 1100 + T.length * 140, cb); },
+    // ---- THE SILVER ELF: four spells, each bigger than the last ----
+    lance(f, T, cb, bid) {
+        const F = FPOS(f), p = UPOS(T[0]); screenTint('#000014', 0.75, 900); gatherEnergy({ x: F.x, y: F.y + 1.5, z: F.z }, 0xc9d8ff);
+        _fxAt(bid, 500, () => { fxFlash({ x: F.x, y: F.y + 1.5, z: F.z }, 0xffffff, 10, 0.4); ringFX({ x: F.x, y: F.y + 1.5, z: F.z }, 0x9fd2ff, 0.5, 8, 0.5, false); });
+        _fxAt(bid, 800, () => { thrustFX({ x: F.x, y: F.y + 1.2 }, p, 0xffffff, 1.6, 0.5); thrustFX({ x: F.x, y: F.y + 1.2 }, p, 0x9fd2ff, 3.2, 0.7); speedLines(p, 0xc9d8ff, 30);
+            fxFlash(p, 0xffffff, 22, 0.6); fxFlash(p, 0x9fd2ff, 30, 1.0); shockSphere(p, 0xc9d8ff, 10, 0.7); screenTint('#ffffff', 0.85, 200); camPunch(8, 0.5); hitStop(260, 0.1); triggerCameraShake(3); cb(); });
+    },
+    aurora(f, T, cb, bid) {
+        const cols = [0x5affc8, 0x9a7aff, 0x5ac8ff, 0xff7ad8]; screenTint('#0a1a2a', 0.65, 1600);
+        for (let i = 0; i < 12; i++) _fxAt(bid, i * 90, () => { const u = T[i % T.length], p = UPOS(u); beamFX({ x: p.x + rr(-2, 2), y: GROUND, z: p.z + rr(-1.5, 1.5) }, cols[i % 4], 26, 1.4, 1.1); });
+        _fxAt(bid, 1150, () => { T.forEach(u => { const p = UPOS(u); ringFX({ x: p.x, y: GROUND + 0.1, z: p.z }, 0x5affc8, 4, 0.5, 0.5, true); shockSphere(p, 0x9a7aff, 4, 0.6); particles(p, 0x5affc8, 30, { speed: 6, up: 1.4, grav: -1 }); }); triggerCameraShake(1.8); camPunch(4, 0.35); cb(); });
+    },
+    starfall(f, T, cb, bid) {
+        screenTint('#000010', 0.7, 2000); const F = FPOS(f); beamFX({ x: F.x, y: GROUND, z: F.z }, 0xffffff, 40, 1.2, 1.2);
+        for (let i = 0; i < 30; i++) _fxAt(bid, 200 + i * 55, () => { const u = T[i % T.length], p = UPOS(u), t = { x: p.x + rr(-3, 3), y: GROUND + 0.5, z: p.z + rr(-2, 2) }; projectile({ x: t.x + 6, y: 34, z: t.z - 4 }, t, i % 4 ? 0xffffff : 0xffd27a, 0.35, 0, 1.6, () => { fxFlash(t, 0xc9d8ff, 6, 0.35); ringFX({ x: t.x, y: GROUND + 0.1, z: t.z }, 0xffffff, 0.5, 4, 0.35, true); triggerCameraShake(0.5); }); });
+        _fxAt(bid, 2050, () => { const c = T.map(UPOS).reduce((a, p) => ({ x: a.x + p.x / T.length, y: a.y + p.y / T.length, z: a.z + p.z / T.length }), { x: 0, y: 0, z: 0 }); shockSphere(c, 0xffffff, 16, 0.9); fxFlash(c, 0xffffff, 40, 0.8); screenTint('#ffffff', 0.9, 260); camPunch(8, 0.5); hitStop(240, 0.12); triggerCameraShake(3); cb(); });
+    },
+    silence(f, T, cb, bid) {
+        screenTint('#000000', 0.92, 900); hitStop(700, 0.05); const F = FPOS(f);
+        _fxAt(bid, 120, () => { ringFX({ x: F.x, y: F.y + 1, z: F.z }, 0xffffff, 0.5, 30, 0.9, false); ringFX({ x: F.x, y: GROUND + 0.1, z: F.z }, 0xc9d8ff, 1, 28, 0.9, true); });
+        _fxAt(bid, 900, () => { T.forEach(u => { const p = UPOS(u); fxFlash(p, 0xffffff, 16, 0.5); dirSlash(p, -0.4, 0xffffff, 8, false, 0.35); dirSlash(p, 0.2, 0xc9d8ff, 8, true, 0.35); dirSlash(p, -Math.PI / 2 + 0.75, 0x9fd2ff, 9, false, 0.4); speedLines(p, 0xffffff, 16); }); screenTint('#ffffff', 1, 220); camPunch(9, 0.5); triggerCameraShake(3.2); cb(); });
+    }
+};
+function castSpell(f, sp, done) {
+    const bid = BID, T = sp.all ? LIVE_PARTY() : [pickVictim()].filter(Boolean);
+    if (!T.length) { done(); return; }
+    f.poseUntil = performance.now() + 1500;
+    showDialogue(`${f.name}: ${sp.name}! ${sp.q || ''}`);
+    bannerFX(sp.name, f.key === 'cv_silverelf' ? '#c9d8ff' : '#ff8a6a');
+    (SPELL_FX[sp.fx] || SPELL_FX.howl)(f, T, () => {
+        if (!live(bid)) return;
+        f.noLunge = true; T.forEach(u => strikeUnit(f, u, sp.mult)); f.noLunge = false;
+        if (sp.after === 'chill') T.forEach(u => { if (!u.ko && Math.random() < 0.6) { u.chill = true; floatText('CHILLED', '#9fe8ff', UPOS(u), 1.0); } });
+        setTimeout(done, 1000);
+    }, bid);
+}
+// ---------- the five caves ----------
+const CAVES = [
+    { fb: 'censor', key: 'cave_censor', name: 'THE CATACOMBS OF ASHFORD', at: ASHFORD, dx: 2, dz: -27, biome: 'crags', stage: 'crags', floor: 0x2a2224, line: 0x5a0a14, glow: 0xff3b30, rock: 0x2a2a30,
+        foes: [['vampire_thrall', 'blood_bat'], ['crypt_ghoul', 'crypt_ghoul', 'blood_bat'], ['vampire_thrall', 'vampire_thrall'], ['blood_bat', 'crypt_ghoul', 'vampire_thrall']], human: { vampire_thrall: 1 },
+        boss: { keys: ['cv_dracula', 'vampire_thrall', 'vampire_thrall'], human: DRACULA_D, size: 1.25, name: 'COUNT DRACULA',
+            pre: ["Welcome to my house! Enter freely and of your own will!",
+                "Listen to them, the children of the night. What music they make!",
+                "Your Raiders burned a whole town above my crypt seventeen years ago. The smoke drifted down for weeks. I have been so... well fed.",
+                ['@', "Bram Stoker wrote about you. You lost in the end."], "Stoker wrote a book. And you know what happens to books on this island."],
+            fall: "Dust... again. Remember, little courier: the dead travel fast. I will be waiting at the bottom of every dark place you ever visit." } },
+    { fb: 'colossus', key: 'cave_colossus', name: 'THE GATE OF THE UNDERWORLD', at: MAW, dx: -22, dz: 4, biome: 'crags', stage: 'crags', floor: 0x14141e, line: 0x2a6aff, glow: 0x5ac8ff, rock: 0x1e1e2a,
+        foes: [['shade', 'shade'], ['hellhound', 'shade'], ['hellhound', 'hellhound'], ['shade', 'hellhound', 'shade']], human: {},
+        minis: [{ keys: ['cv_hydra', 'shade'], mon: 'hydra_m', size: 1.8, name: 'THE HYDRA', dx: -17, dz: -8, pre: ["Nine heads rise out of the black water. All nine of them are looking at you."] },
+            { keys: ['cv_medusa', 'gorgon_stheno', 'gorgon_euryale'], human: MEDUSA_D, size: 1.1, name: 'THE GORGON SISTERS', dx: 17, dz: -8,
+                pre: [['STHENO', "Sister, we have visitors."], ['EURYALE', "Living ones. How rare."], ['MEDUSA', "Don't look at me. Everyone always looks."]] }],
+        boss: { keys: ['cv_hades', 'hellhound', 'shade'], human: HADES_D, size: 1.4, name: 'HADES',
+            pre: ["So. The living walk my halls again.",
+                "Your Achilles once told Odysseus he would rather be a poor man's servant above ground than king of all the dead. I took it personally.",
+                ['@', "We're not here to stay."], "Nobody ever is. Come, then. Let us weigh you."],
+            fall: "Go back up to the sun, then. You'll return to me eventually. Everyone does. I am very patient." } },
+    { fb: 'rime', key: 'cave_rime', name: 'THE DEN OF THE FIRST WOLF', at: WHITE, dx: 22, dz: 8, biome: 'snow', stage: 'snow', floor: 0x8aa0b8, line: 0xc9d8ff, glow: 0xc9d8ff, rock: 0x6a7a8e,
+        foes: [['werewolf', 'moon_wisp'], ['werewolf', 'werewolf'], ['moon_wisp', 'moon_wisp', 'werewolf'], ['rime_warg', 'werewolf']], human: {},
+        boss: { keys: ['cv_lycaon', 'werewolf', 'werewolf'], mon: 'lycaon_m', size: 1.9, name: 'LYCAON',
+            pre: ["Once I was a king. I served a god a meal he did not like, and he made me what I am. Ovid wrote it down.",
+                "He got the ending wrong. I never stopped being hungry."],
+            fall: "The moon... is setting... Tell Ovid... I was a king..." } },
+    { fb: 'leviathan', key: 'cave_leviathan', name: 'THE TOMB BENEATH THE SANDS', at: DUNES, dx: -6, dz: -30, biome: 'desert', stage: 'desert', floor: 0x8a6a3a, line: 0xf0d080, glow: 0xffd27a, rock: 0x9a7a4a,
+        foes: [['lamia', 'tomb_wraith'], ['scorpion_man', 'scorpion_man'], ['tomb_wraith', 'lamia', 'tomb_wraith'], ['scorpion_man', 'lamia']], human: { lamia: 1 },
+        boss: { keys: ['cv_sphinx', 'scorpion_man', 'lamia'], mon: 'sphinx_m', size: 1.9, name: 'THE SPHINX',
+            pre: ["What walks on four feet in the morning, two at noon, and three in the evening?",
+                ['@', "...A person. We crawl, then we walk, then we lean on a cane."],
+                "Correct. Oedipus answered it too. It did not save him either."],
+            fall: "A riddle... I cannot answer... Who are you, that you walk out of my tomb on your own two feet?" } },
+    { fb: 'treant', key: 'cave_treant', name: 'THE SILVER GROVE BELOW', at: ELDER, dx: -22, dz: -16, biome: 'forest', stage: 'forest', floor: 0x1e2a3a, line: 0x9fd2ff, glow: 0x9fd2ff, rock: 0x3a4a5a,
+        foes: [['spell_wraith', 'werewolf'], ['grimoire_golem', 'spell_wraith'], ['werewolf', 'werewolf', 'spell_wraith'], ['grimoire_golem', 'grimoire_golem']], human: {},
+        boss: { keys: ['cv_silverelf', 'grimoire_golem', 'spell_wraith'], human: SILVER_ELF_D, size: 1.2, name: 'THE SILVER ELF',
+            pre: ["A thousand years I have kept this grove, and the library sleeping under its roots. You are the first to reach the bottom in three centuries.",
+                "Don't be flattered. I'm only curious what kind of magic you mortals still remember.",
+                ['@', "We didn't come to steal your books."], "Everyone who burns books says that first.",
+                "Show me, then. And try not to blink. Most of them blink."],
+            fall: "...Hm. Not bad. Not bad at all. Take what you need from the library. I'll be here in another thousand years, if you want a rematch." } }
+];
+const CAVE_BY_KEY = {};
+CAVES.forEach((C, i) => {
+    CAVE_BY_KEY[C.key] = C;
+    // the entrance on the surface: a rock arch that rises out of the ground when the titan falls
+    C.x = C.at.x + C.dx; C.z = C.at.z + C.dz; const gy = groundAt(C.x, C.z);
+    const parts = [];
+    [[-3.4, 1.8, 0, 2.4], [3.4, 1.8, 0, 2.4], [-2.4, 4.4, -0.4, 2.0], [2.4, 4.4, -0.4, 2.0], [0, 5.8, -0.6, 2.2], [0, 2.4, -2.6, 3.2]].forEach(([x, y, z, r], j) => { const g = new THREE.DodecahedronGeometry(r, 0); g.rotateY(j); g.translate(x, y, z); parts.push([g, j % 2 ? C.rock : 0x1e1e24]); });
+    const ent = new THREE.Group(), arch = new THREE.Mesh(mergeGeos(parts), matProp); arch.castShadow = true; ent.add(arch);
+    const mouth = new THREE.Mesh(new THREE.CircleGeometry(2.3, 12, 0, Math.PI), new THREE.MeshBasicMaterial({ color: 0x030305 })); mouth.position.set(0, 0.05, 0.4); ent.add(mouth);
+    ent.position.set(C.x, gy, C.z); ent.visible = false; scene.add(ent); C.ent = ent; C.gy = gy;
+    const glow = makeGlow(C.x, gy + 1.4, C.z + 0.6, C.glow, 4, 0.25), col = addCirc(C.x, C.z - 2.2, 3.4);
+    animated.push(() => { const open = !!(story.fb || {})[C.fb]; ent.visible = open; glow.visible = open; col.on = open; });
+    INTERACTS.push({ x: C.x, z: C.z + 3, r: 3.6, act: () => enterZone(C.key),
+        label: () => (story.fb || {})[C.fb] && !inCombat ? '[E] DESCEND: ' + C.name + ((story.caveDone || {})[C.key] ? ' (CLEARED)' : '') : '' });
+    // the cave itself, far off the island
+    const Z = ZONES[C.key] = { key: C.key, name: C.name, x: -5600, z: -1040 + i * 520, r: 46, biome: C.biome, stage: C.stage, dark: true, noRide: true, music: 'battle', cave: true };
+    Z.spawn = { x: Z.x, z: Z.z + 40 };
+    zoneFloor(Z, C.floor, C.line);
+    for (let k = 0; k < 30; k++) {      // cave walls; the southern rim stays low so it never blocks the camera
+        const a = k / 30 * Math.PI * 2, south = Math.sin(a) > 0.2, m = new THREE.Mesh(rockGeo, rockMat(C.rock));
+        m.position.set(Z.x + Math.cos(a) * (Z.r + 2), 0, Z.z + Math.sin(a) * (Z.r + 2)); m.scale.set(5, south ? 1.2 : 7, 5); m.rotation.y = a; scene.add(m);
+    }
+    const spike = new THREE.ConeGeometry(1, 5, 6); spike.translate(0, 2.5, 0);
+    zoneScatter(Z, spike, rockMat(C.rock), 34, 0.5, 1.5, 0.8, [[Z.x, Z.z + 40, 9], [Z.x, Z.z - 34, 12], [Z.x - 17, Z.z - 8, 7], [Z.x + 17, Z.z - 8, 7]]);
+    for (let k = 0; k < 10; k++) { const a = k / 10 * Math.PI * 2; makeGlow(Z.x + Math.cos(a) * 30, 2.4, Z.z + Math.sin(a) * 30, C.glow, 4.5, 0.25); }
+    makeGlow(Z.x, 3, Z.z - 34, C.glow, 12, 0.3);
+    C.foes.forEach((keys, j) => zoneFoe(C.key, keys, Z.x + [-14, 14, -10, 12][j], Z.z + [22, 16, 2, -14][j], C.human[keys[0]] ? { human: BESTIARY[keys[0]].D } : {}));
+    (C.minis || []).forEach(m => zoneFoe(C.key, m.keys, Z.x + m.dx, Z.z + m.dz, { human: m.human, mon: m.mon, size: m.size, patrol: 0, name: m.name, pre: m.pre }));
+    const B0 = C.boss;
+    Z.boss = zoneFoe(C.key, B0.keys, Z.x, Z.z - 34, { human: B0.human, mon: B0.mon, size: B0.size, patrol: 0, boss: true, name: B0.name, pre: B0.pre });
+    zoneExit(Z, Z.x, Z.z + 43, 'CLIMB BACK TO THE SURFACE');
+});
+async function caveReveal(FB) {
+    const C = CAVES.find(c => c.fb === FB.k);
+    if (!C || CS.on) { autoSave(); return; }
+    csBegin({}); csUse(hero); placeActor(hero, C.x + 5, C.z + 9); hero.dir = 'up';
+    C.ent.visible = true; C.ent.position.y = C.gy - 7;
+    csShot(C.x, C.z + 2, { dist: 17, h: 5, look: 2.5, yaw: 0.35, snap: true });
+    await csSay('', `Where the ${ENEMY_TYPES['fb_' + FB.k].name} fell, the ground begins to groan.`, 2600);
+    if (!CS.skip) {
+        triggerCameraShake(1.6);
+        const t0 = performance.now(); addSmoke(C.x, C.gy + 2, C.z);
+        await new Promise(res => tween(1.8, k => { C.ent.position.y = C.gy - 7 + 7 * (1 - Math.pow(1 - k, 3)); if (performance.now() - t0 > 200) triggerCameraShake(0.4); }, res));
+    }
+    C.ent.position.y = C.gy;
+    csShot(C.x, C.z, { dist: 9, h: 2, look: 2, yaw: -0.3, snap: true });
+    await csTitle('A CAVE IS REVEALED\n' + C.name, 2800);
+    csEnd({ x: C.x + 4, z: C.z + 8 });
+    autoSave();
+}
+function caveCleared(key) {
+    const C = CAVE_BY_KEY[key]; if (!C) return;
+    story.caveDone = story.caveDone || {}; const first = !story.caveDone[key]; story.caveDone[key] = true;
+    if (first) { bag.elixir = (bag.elixir || 0) + 2; bag.fuel = (bag.fuel || 0) + 3; }
+    playDialogue([{ s: C.boss.name, t: C.boss.fall }].concat(first ? [{ s: 'REWARD', t: giveReward(['Elixir x2, Gear Fuel x3.'], key === 'cave_treant' ? 9000 : 4000) }] : []), () => autoSave());
 }
 
 // ==========================================
