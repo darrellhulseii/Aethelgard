@@ -7126,7 +7126,7 @@ async function hangarScene(key) {
     // 2. lights clank on, bank by bank; the silhouette fills the bay
     CS.bounds.z1 = Z + 29;
     csShot(X, Z + 8, { dist: 18, h: 3, look: 9, yaw: 0.25, fov: 55, snap: true });
-    await csSay('', 'Somewhere above, a breaker slams home.', 1600);
+    await csSay('', 'Somewhere above, a breaker turns on.', 1600);
     hangarLights(true);
     tween(1.8, k => { ambientLight.intensity = 0.32 + 0.6 * k; sun.intensity = 0.28 + 0.4 * k; });
     await csWait(1900);
@@ -10425,11 +10425,17 @@ const HLW_GARTS = [
     [{ name: 'ECTO BLAST', seq: [2, 3], mult: 2.9, tgt: 'one', fx: 'stun', anim: 'ecto', q: 'Boo. With force.' }, { name: 'SPECTER BARRAGE', seq: [3, 3, 3], mult: 2.3, tgt: 'all', fx: 'chillAll', anim: 'barrageB', q: 'Sixteen ghosts, sixteen directions.' }, { name: 'PHANTOM CANNON', seq: [1, 2, 3, 3], mult: 4.0, tgt: 'one', fx: 'crit', anim: 'cannon', q: 'Everything I have. Fire.' }]
 ];
 
-// ---------- THREE TIMES AS HARD ----------
+// ---------- DIFFICULTY GROWS WITH THE STORY: normal (x1) on the first chapter, up to x3 by the final boss and after ----------
+function hlwDiff() {
+    const s = story.hlw; if (!s) return 1;
+    if (s.done) return 3;
+    const n = Math.max(1, hlwStory().ch.length - 1);
+    return 1 + 2 * Math.min(1, s.st / n);
+}
 const _foeFromKey = foeFromKey;
 foeFromKey = function (key, slot) {
     const E = _foeFromKey(key, slot);
-    if (HLW.on) { E.hp = E.maxHp = Math.round(E.hp * 3); E.dmg = [E.dmg[0] * 3, E.dmg[1] * 3]; E.xp = Math.round((E.xp || 30) * 3); E.gold = Math.round((E.gold || 30) * 3); }
+    if (HLW.on) { const m = hlwDiff(), r = 1.5 + (m - 1) * 0.75; E.hp = E.maxHp = Math.round(E.hp * m); E.dmg = [Math.round(E.dmg[0] * m), Math.round(E.dmg[1] * m)]; E.xp = Math.round((E.xp || 30) * r); E.gold = Math.round((E.gold || 30) * r); }
     return E;
 };
 // ---------- AP up to 13 ----------
@@ -10514,13 +10520,14 @@ async function hlwIntroScene() {
             if (p1 === 'ring') { ringFX({ x: q.x, y: GROUND + 0.2, z: q.z }, p3, 0.5, 5, 0.8, true); particles(q, p3, 18, { speed: 3, up: 1.5, grav: -1 }); }
             if (p1 === 'ember') { for (let i = 0; i < 6; i++) projectile({ x: q.x + 3, y: q.y + 4, z: q.z }, q, p3, 0.6, 1, 0.5); }
             if (p1 === 'dust') { particles(q, p3, 40, { speed: 6, up: 1.5, grav: -1 }); debris(q, 0x3a1a1a, 10); }
+            if (p1 === 'bat') hlwBatFly(q, p3);
             await csWait(500);
         }
     }
     await csWait(400);
     csEnd(back);
     if (currentRoom) setInteriorMode && setInteriorMode(true);
-    showDialogue(hlwStory().title + ': ' + hlwObjective(), 'NOTEBOOK');
+    showDialogue(hlwStory().title + ': ' + hlwObjective(), 'BACKSTORY EVENTS');
 }
 const _readText = readText;
 readText = function (key) { if (HLW.on && key === 'letter') { hlwIntroScene(); return; } return _readText(key); };
@@ -10591,7 +10598,7 @@ hlwStart = function (k) {
     _hlwStart3(k);
     playerStats.maxAp = 10;
     hlwMayorPlace();
-    const add = [ST_('MAYOR PUMPKINWHISTLE', `Psst! ${hlwDef().sh}! Over here, by the lantern! Come and talk to the mayor of Hallow's End. I have news about a SPECIAL GIFT.`), ST_('SYSTEM', 'Tip: the NOTEBOOK on the desk in your home tells your story as a scene. Halloween mode is three times as hard as the main game: enemies have 3x HP and hit 3x as hard (and give 3x XP and gold). Your AP now goes up to 13.')];
+    const add = [ST_('MAYOR PUMPKINWHISTLE', `Psst! ${hlwDef().sh}! Over here, by the lantern! Come and talk to the mayor of Hallow's End. I have news about a SPECIAL GIFT.`), ST_('SYSTEM', 'Tip: BACKSTORY EVENTS on the desk in your home tells your story as a scene. Halloween mode starts at normal difficulty and grows harder with every chapter of your story, up to three times as hard by the final battle (with bigger XP and gold to match). Your AP now goes up to 13.')];
     const go = () => { if (dlg) { setTimeout(go, 400); return; } playDialogue(add); };
     setTimeout(go, 600);
 };
@@ -10962,6 +10969,305 @@ const _hlwStart6 = hlwStart;
 hlwStart = function (k) { _hlwStart6(k); hlwSkinAllyNpcs(); };
 const _loadGame6 = loadGame;
 loadGame = function () { const ok = _loadGame6(); if (ok && HLW.on) { hlwSkinAllyNpcs(); party.forEach(hlwSkinMember); } return ok; };
+
+// =====================================================================
+// BLOOD OF MY HEART, retold: Dracula escaped as a bat and went into hiding. Nocturne finds him raising an
+// army of the undead (half of them villagers in costume he has to turn), Dracula joins, Van Helsing is the
+// final foe, and at sunrise the villagers' stakes send the two of them back to the earth together.
+// After any story: roam as anyone in the party, finish the side quests, and revive departed heroes
+// (Ozzy for the vampires, Imhotep for the Pharaoh, Casper for the ghost).
+// =====================================================================
+// the desk text in Halloween mode
+(function () {
+    const L = TEXTS.letter, t0 = L.title, a0 = L.author;
+    Object.defineProperty(L, 'title', { get: () => HLW.on ? 'BACKSTORY EVENTS' : t0, configurable: true });
+    Object.defineProperty(L, 'author', { get: () => HLW.on ? hlwDef().nm : a0, configurable: true });
+})();
+// a bat bursting out of a body and flying off (cutscenes)
+function hlwBatFly(q, col) {
+    const a = makeActor(hlwPetSet(1), 2.6, 0.6); CS.temps.push(a); a.blob.visible = false;
+    placeActor(a, q.x, q.z); a.dir = 'right'; setActorFrame(a);
+    particles(q, col || 0x111118, 26, { speed: 5, up: 1.5 });
+    const x0 = q.x, y0 = a.mesh.position.y, z0 = q.z;
+    tween(1.6, k => { a.mesh.position.set(x0 + k * 14, y0 + k * 9 + Math.sin(k * 20) * 0.4, z0 - k * 10); a.anim = k * 30; setActorFrame(a); }, () => { a.mesh.visible = false; });
+}
+// new looks
+Object.assign(HLW_D, {
+    thrall: HD({ skin: '#e8dcd8', skinD: '#c8b8b4', hair: '#141418', hairStyle: 'short', top: '#d8d8e0', topD: '#a8a8b0', topL: '#ffffff', scarf: '#a8101a', scarfD: '#6a0a10', pants: '#3a3a44', eye: '#ff2222', mouth: '#7a0a1a' }),
+    ozzy: HD({ skin: '#ecdcd0', hair: '#1a1a1e', hairD: '#0a0a0e', hairL: '#3a3a40', hairStyle: 'long', glasses: true, glassF: '#6a3a8a', top: '#141418', topD: '#0a0a0e', topL: '#2a2a32', collar: '#5a2a7a', pants: '#141418', item: 'lantern', rope: '#4a4a4a', frame: '#2a2a2a', flame: '#c89aff' }),
+    imhotep: HD({ skin: '#a87a52', skinD: '#86603e', hair: '#a87a52', hairD: '#86603e', hairL: '#c89a6a', hairStyle: 'short', robe: '#f0e8d0', robeD: '#d0c4a0', top: '#f0e8d0', topD: '#d0c4a0', topL: '#ffffff', trim: '#e8c050', belt: '#e8c050', collar: '#2a4ab0', item: 'staff', wood: '#c8a040', orb: '#44eeff', orbL: '#e8ffff' })
+});
+BESTIARY.hwb_thrall = { name: 'NEW-TURNED THRALL', body: 'human', D: HLW_D.thrall, hp: 1100, dmg: [95, 135], xp: 31, trait: 'siphon' };
+Object.assign(ENEMY_TYPES, {
+    hwx_thralls: hb('THE FERAL THRALLS', 14500, [96, 134], { D: HLW_D.thrall, size: 0.9, trait: 'siphon', trait2: 'double', def: 50 }),
+    hwx_vh: hb('PROFESSOR ABRAHAM VAN HELSING', 17500, [102, 142], { D: HLW_D.helsing, size: 0.95, trait: 'warded', trait2: 'double', def: 56 })
+});
+// Count Dracula as a party member
+HLW_ALLIES.hlwdrac = { nm: 'Count Dracula', title: 'the Count, out of hiding at last', D: 'dracula', st: { hp: 1450, ep: 35, atk: 140, def: 85, ap: 7, g: { hp: 100, ep: 3, atk: 8, def: 5 } }, wt: 'blades',
+    arts: [{ name: 'CHILDREN OF THE NIGHT', seq: [2, 2], mult: 2.3, tgt: 'all', fx: 'stun', anim: 'swarm', q: '"Listen to them. What music they make."' },
+           { name: "THE COUNT'S EMBRACE", seq: [1, 3, 3], mult: 3.6, tgt: 'one', fx: 'drain', anim: 'kiss', q: '"I bid you welcome. Freely. And of your own will."' },
+           { name: 'NIGHT ETERNAL', seq: [3, 2, 3, 4], mult: 4.8, tgt: 'all', anim: 'eclipse', lv: 4, q: '"The night is mine, and so are you."' }] };
+const _hlwApplyN = hlwApply;
+hlwApply = function (k) {
+    _hlwApplyN(k);
+    ALLY_STORY.hlwdrac = ['Count Dracula. Van Helsing\'s stake never landed: he became a bat and hid for a hundred years. Now he is back, with his bride.'];
+    ALLY_ARTS.hlwdrac.forEach(a => { ART_COLORS[a.name] = '#c01a3a'; ART_ANIMS[a.name] = HLW_ANIM[a.anim](0xc01a3a, 0xff5a7a); });
+};
+const _hlwJoinAllyN = hlwJoinAlly;
+hlwJoinAlly = function (key) {
+    if (key === 'hlwdrac' && !party.some(m => m.key === key) && activeAllies().length >= 3) { const b = activeAllies().filter(m => m.key !== 'hlwpet').pop() || activeAllies().pop(); if (b) b.active = false; }
+    const m = _hlwJoinAllyN(key);
+    return m;
+};
+
+// ---------- the backstory scene: no dust, a bat ----------
+HLW_SCENES[1].beats = [['title', 'TRANSYLVANIA, ONE HUNDRED YEARS AGO'], ['put', 'D', 1, -1], ['put', 'H', -1.6, -0.6], ['shotA', 'H'],
+    ['say', 'DRACULA', "Nocturne. When the world ends, we will still be dancing."], ['say', 'NOCTURNE', 'Then let it end slowly.'],
+    ['put', 'V', 10, 6], ['walk', 'V', 4, 2], ['shotA', 'V'], ['say', 'VAN HELSING', 'There! The Count! Stakes, gentlemen, NOW!'],
+    ['fx', 'flash', 'D', 0xffffff], ['fx', 'bat', 'D', 0x2a1a2a], ['hide', 'D'],
+    ['say', 'SYSTEM', "The stake never landed. The Count burst into a bat, flew off into the dark, and went into hiding. Bram Stoker wrote that he turned to dust. Stoker was wrong."],
+    ['shotA', 'V'], ['say', 'VAN HELSING', "He will come back. They always come back. And I will be waiting."],
+    ['shotA', 'H'], ['say', 'NOCTURNE', "A hundred years I have searched for you, Vlad. Wherever you are hiding, I am coming."], ['walk', 'P', -0.4, -1.6], ['fx', 'ring', 'H', 0xff2a3a]];
+HLW_MERGE[1].react[1] = ['NOCTURNE', "Werewolves. Mummies. Scarecrows that walk. And somewhere among them, my husband, out of hiding at last."];
+HLW_BRIEF[1] = "The whole world folded into one island tonight. Somewhere in it, my husband has come out of hiding.";
+
+// ---------- the story ----------
+HLW_S[1].intro = [
+    ST_('HALLOWEEN MODE', 'COUNTESS NOCTURNE: BLOOD OF MY HEART'),
+    ST_('SYSTEM', 'A hundred years ago, Professor Abraham Van Helsing and his band cornered Count Dracula in the snow, stakes raised, just as Bram Stoker wrote it.'),
+    ST_('SYSTEM', 'What no book recorded: the stake never landed. The Count burst into a bat, flew into the night, and went into hiding. His bride, Nocturne, has searched for him ever since.'),
+    ST_('NOCTURNE', "A century of nights without you, my love. I counted every one."),
+    ST_('NOCTURNE', "And tonight every rat and crow on this island whispers the same thing: the Count is out of hiding, and he is raising an army of the undead. Flittermouse. Find him.")];
+HLW_S[1].ch = [
+  { at: 'valkora', o: 'Look for a trail in VALKORA. Someone here has heard from the Count.', lbl: '[E] QUESTION THE STRANGE LITTLE MAN', npc: { D: 'puritan', nm: 'R.M. Renfield (the Younger)' },
+    pages: [ST_('RENFIELD THE YOUNGER', "Mistress! Mistress! I knew you'd come! My grandfather served the Master. He ate flies. I eat... mostly sandwiches."),
+        ST_('RENFIELD THE YOUNGER', "The Master is BACK! He came out of hiding the night the realms merged. He's raising an army of the undead, and the muster is at BLOODSPIRE, up at SKYREACH!"),
+        ST_('NOCTURNE', "An army. Oh, Vlad. You always did love a grand entrance.")] },
+  { at: 'sky', o: "Find the Count's army mustering at BLOODSPIRE (SKYREACH, the snowy north).", lbl: '[E] WALK INTO THE MUSTER',
+    pages: [ST_('SYSTEM', 'In the castle yard, a hundred undead stand in rows: vampires, skeletons, ghouls, a werewolf or two.'),
+        ST_('SYSTEM', 'You look closer. The fangs are wax. The bones are painted on pajamas. One skeleton is eating a candy apple.'),
+        ST_('A "VAMPIRE" IN A BEDSHEET CAPE', "Ooh, great costume, lady! You here for the Count's army too? He said if we showed up dressed as monsters, we'd get to be REAL monsters!"),
+        ST_('NOCTURNE', "...Most of his army is wearing a costume."),
+        ST_('BLOODHUNTER QUINLAN', "Clear the yard! Every REAL vampire here gets a stake. The rest of you, go home to your mothers. My great-grandfather was Quincey Morris, and I finish what he started.")],
+    fight: ['hwx_hunter', 'hw_bat', 'hw_bat'], win: [ST_('SYSTEM', "Quinlan flees into the snow and drops a hunter's map. A crypt below STOA CROSSING is circled three times: \"THE BAT ROOSTS HERE.\""), ST_('NOCTURNE', "Vlad never could resist a crypt.")], wpn: 1, gold: 300 },
+  { at: 'stoa', o: 'Search the crypt below STOA CROSSING (the desert, south-east), where the bat roosts.', lbl: '[E] DESCEND INTO THE CRYPT',
+    pages: [ST_('SYSTEM', 'Beneath the crossroads stone, a crypt. Something squeaks. Then a hundred somethings squeak.'), ST_('RENFIELD THE YOUNGER', "Oh dear. The rats! Grandfather always said the Master could call them. These ones seem to have elected a king.")],
+    fight: ['hwx_ratking', 'hwb_rat', 'hwb_rat'], win: [ST_('SYSTEM', 'Behind the rat king\'s throne: an empty coffin, still warm. On the lid, a calling card in red ink: "Not here, my love. Follow the woman in white. V."'), ST_('NOCTURNE', "He knows I'm coming. Of course he knows.")], wpn: 2, gold: 400 },
+  { at: 'brine', o: "In GLOOMWICK, the ghost of LUCY WESTENRA knows where the Count hides. She was his first victim.", lbl: '[E] FOLLOW THE WOMAN IN WHITE',
+    pages: [ST_('SYSTEM', "In Stoker's novel, Lucy Westenra became a vampire the children called the Bloofer Lady, before Van Helsing put her to rest. Her ghost never quite left."), ST_('LUCY', "He chose me first, you know. Before you. He chose ME."), ST_('NOCTURNE', "He chose you as supper, darling. He chose me as a wife.")],
+    fight: ['hwx_lucy', 'hw_ghost', 'hw_ghost'], win: [ST_('LUCY', '...He hides at the FROZEN LAKE, where the hunters never think to look. Tell him I forgive him. Tell him I am tired.'), ST_('SYSTEM', 'Lucy fades like breath on a window.')], gold: 400 },
+  { at: 'ice', o: 'Find the Count in hiding at the FROZEN LAKE.', lbl: '[E] CALL HIS NAME ACROSS THE ICE',
+    pages: [ST_('SYSTEM', 'The frozen lake is silent. Then, from under the eaves of an old boathouse, a single bat drops into the snow... and rises as a tall man in a cape.'),
+        ST_('DRACULA', "Nocturne. A hundred years. I did not dare send for you. Van Helsing's hunters watched every road."),
+        ST_('NOCTURNE', "You hid for a CENTURY, Vlad."),
+        ST_('DRACULA', "I hid so that I could come back for you, and do it properly. The night the realms merged, I sent out the call: an army of the undead, to finish Van Helsing forever."),
+        ST_('DRACULA', "...And most of those who answered are villagers in costume. Bedsheets. Wax fangs. Very enthusiastic. I cannot march on the Professor with a costume parade."),
+        ST_('NOCTURNE', "Then we make them real. Every one of them."),
+        ST_('DRACULA', "Then come. They wait at the OBSIDIAN GATE.")], gold: 300 },
+  { at: 'base', o: 'Turn the costumed army into real vampires at the OBSIDIAN GATE (north-west).', lbl: '[E] RAISE THE ARMY OF THE NIGHT', npc: { D: 'dracula', nm: 'Count Dracula' },
+    pages: [ST_('SYSTEM', 'Under a red moon, the costumed recruits stand in rows before the Obsidian Gate. The Count walks down the line, and one by one, the wax fangs are traded for real ones.'),
+        ST_('A FARMER IN A PAPER CAPE', "W-wait, I thought this was a costume party!"),
+        ST_('DRACULA', "It was. Now it is a coronation."),
+        ST_('SYSTEM', 'Not every bite takes cleanly. Half-turned and wild with hunger, a pack of new thralls breaks the line.'),
+        ST_('NOCTURNE', "Vlad, they've gone feral!"), ST_('DRACULA', "Then we teach them manners. Together.")],
+    fight: ['hwx_thralls', 'hwb_thrall', 'hwb_thrall'], win: [ST_('SYSTEM', 'The thralls fall quiet. Then the whole army of the night kneels, real fangs and all.'), ST_('DRACULA', "My bride and I will lead you. Tonight, we march on the SYLVAN HERMITAGE."), ST_('NOCTURNE', "Stay close this time, Vlad. I am not losing you again.")], join: 'drac', wpn: 3, gold: 600 },
+  { at: 'herm', o: 'FINAL BATTLE: march on VAN HELSING at the SYLVAN HERMITAGE (far south-west) with the Count at your side.', lbl: "[E] KNOCK ON THE PROFESSOR'S DOOR", npc: { D: 'helsing', nm: 'Professor Van Helsing' },
+    pages: [ST_('SYSTEM', 'The army of the night surrounds the Hermitage. One old man waits on the porch with a crossbow and a worn Bible.'),
+        ST_('VAN HELSING', "So. The Count did not die in Transylvania. I knew it. I have kept my stakes sharp for a hundred years."),
+        ST_('DRACULA', "You look old, Professor."), ST_('VAN HELSING', "And you look exactly the same. That is the whole trouble with you."),
+        ST_('NOCTURNE', "We will finish this before dawn."), ST_('VAN HELSING', "My dear... dawn is the one thing I do not need to finish.")],
+    fight: ['hwx_vh', 'hw_hunter', 'hw_hunter'], win: [ST_('VAN HELSING', "...Well fought. Both of you. But look east, Countess."), ST_('SYSTEM', 'Over the hills, the sky is turning grey.')], gold: 800 }];
+HLW_S[1].end = [ST_('SYSTEM', 'Where they stood, there is only a little dust, mixed together in the grass, already sinking back into the earth. In the spring, a single red rose grows there.'),
+    ST_('SYSTEM', "THE END of Nocturne's story. Happy Halloween!")];
+HLW_S[2].end = [ST_('SYSTEM', 'A doorway of reeds and sunlight opens in the back of the cave. Beyond it, fields of green go on forever under a gentle sun: the FIELD OF REEDS.'),
+    ST_('PHARAOH', "Sekhet, stay with our friends and keep watch over the living for me. I have a very long rest to finish. And this time I am adding more locks."),
+    ST_('SYSTEM', "The Pharaoh walks into the light, and the doorway closes behind him. THE END of the Pharaoh's story. Happy Halloween!")];
+HLW_S[6].end = [ST_('ELSIE MARROW', "...Ow. Bodies are heavy. And cold. And itchy. Oh, I've missed them SO much."),
+    ST_('SYSTEM', 'As Elsie breathes, the last of WISP, the little ghost who floated across the whole island, lets go and fades like mist in the morning. Elsie goes home to sleep for about a week.'),
+    ST_('SYSTEM', "Boo the will-o-wisp stays behind, glowing warm, to look after Elsie's friends. THE END of Wisp's story. Happy Halloween!")];
+
+// ---------- the vampires' last dawn ----------
+async function hlwVampEnd() {
+    const St = STAGES.forest || STAGES.snow, X0 = St.x, Z0 = St.z, back = { x: hero.mesh.position.x, z: hero.mesh.position.z };
+    csBegin({ night: true, hideParty: party, music: 'hlwB' });
+    CS.bounds = { x0: X0 - 30, x1: X0 + 30, z0: Z0 - 30, z1: Z0 + 30, y1: 30 };
+    csUse(hero); placeActor(hero, X0 - 0.9, Z0); hero.dir = 'down'; setActorFrame(hero);
+    const D = csActor(HLW_D.dracula, 3.5); placeActor(D, X0 + 0.9, Z0); D.dir = 'down'; setActorFrame(D);
+    const V = csActor(HLW_D.helsing, 3.5); placeActor(V, X0, Z0 + 5); V.dir = 'up'; csKneel(V);
+    const mob = [[-11, 9], [-8, 11], [8, 11], [11, 9], [-4, 12], [4, 12]].map(([x, z]) => { const a = csActor(HLW_D.puritan, 3.4, true); a.mesh.visible = false; a.blob.visible = false; placeActor(a, X0 + x, Z0 + z); return a; });
+    await csTitle('THE HERMITAGE, JUST BEFORE DAWN', 2200);
+    csShotA(V, { dist: 8, h: 2.4, look: 1.6, fov: 44, yaw: 0.4, snap: true });
+    await csSay('VAN HELSING', "You won the battle, Count. I never planned to win the battle.");
+    await csSay('VAN HELSING', "I only planned to keep you busy until morning. Villagers of the island! NOW!");
+    mob.forEach(a => { a.mesh.visible = true; a.blob.visible = true; });
+    csShot(X0, Z0 + 6, { dist: 18, h: 7, look: 1.5, fov: 50, yaw: 0.2 });
+    await Promise.all(mob.map((a, i) => csWalk(a, X0 + [-6, -4, 4, 6, -2, 2][i], Z0 + [7, 8, 8, 7, 9, 9][i], 5)));
+    mob.forEach(a => { a.dir = 'up'; setActorFrame(a); });
+    await csSay('SYSTEM', 'Out of the trees come the villagers: farmers, fishermen, the same people who wore costumes last night. Every one carries a crossbow loaded with ash-wood stakes.');
+    // sunrise
+    const a0 = ambientLight.intensity, s0 = sun.intensity;
+    tween(2.4, k => { if (!CS.on) return; ambientLight.intensity = a0 + k * 0.85; sun.intensity = s0 + k * 1.1; });
+    if (!CS.skip) { screenTint('#ffd27a', 0.5, 1400); particles({ x: X0 + 8, y: 10, z: Z0 - 14 }, 0xffd27a, 40, { speed: 3, up: 0.5 }); }
+    csShot(X0, Z0, { dist: 10, h: 3, look: 2, fov: 46, yaw: Math.PI - 0.3 });
+    await csSay('SYSTEM', 'And then the sun comes out.');
+    csShotA(hero, { dist: 7, h: 2.2, look: 2, fov: 42, yaw: 0.3 });
+    await csSay('NOCTURNE', "Vlad... the sun.");
+    await csSay('DRACULA', "I know, my love. I can feel it.");
+    await csSay('VAN HELSING', 'FIRE!');
+    if (!CS.skip) for (let i = 0; i < 14; i++) {
+        const from = mob[i % mob.length].mesh.position, tgt = i % 2 ? D : hero, to = tgt.mesh.position;
+        projectile({ x: from.x, y: from.y + 0.6, z: from.z }, { x: to.x + (Math.random() - 0.5) * 0.6, y: to.y, z: to.z }, 0x8a5a2a, 0.45, 0.8, 0.32, () => { particles(to, 0xc01a3a, 6, { speed: 3 }); });
+        await csWait(110);
+    }
+    if (!CS.skip) { triggerCameraShake(0.9); screenTint('#ffffff', 0.4, 300); }
+    await csWait(500);
+    csShot(X0, Z0, { dist: 6.5, h: 2, look: 2, fov: 40, yaw: 0.1 });
+    await csSay('DRACULA', "Take my hand, Nocturne.");
+    if (!CS.skip) await csWalk(D, X0 + 0.45, Z0, 2); else placeActor(D, X0 + 0.45, Z0);
+    placeActor(hero, X0 - 0.45, Z0); hero.dir = 'right'; D.dir = 'left'; setActorFrame(hero); setActorFrame(D);
+    await csSay('NOCTURNE', "I crossed a hundred years to hold it. I am not letting go now.");
+    await csSay('DRACULA', 'When the world ends...');
+    await csSay('NOCTURNE', '...we will still be dancing.');
+    [hero, D].forEach(a => { const q = { x: a.mesh.position.x, y: a.mesh.position.y + 0.4, z: a.mesh.position.z }; if (!CS.skip) { fxFlash(q, 0xffe8c0, 8, 0.6); particles(q, 0x6a5a4a, 50, { speed: 3, up: 0.8, grav: 1.5 }); debris(q, 0x3a2a1a, 12); } });
+    await csWait(500);
+    hero.mesh.visible = false; hero.blob.visible = false; D.mesh.visible = false; D.blob.visible = false;
+    csShot(X0, Z0, { dist: 12, h: 5, look: 0.6, fov: 46, yaw: 0.25 });
+    await csSay('SYSTEM', 'Two hands, holding on. Then two handfuls of dust, falling together into the grass.');
+    csShotA(V, { dist: 6, h: 2, look: 1.8, fov: 42, yaw: -0.4 });
+    await csSay('VAN HELSING', "Rest now, both of you. Together, as you wanted. Ashes to ashes, and dust to dust.");
+    await csTitle('TOGETHER, FOREVER', 2600);
+    csEnd(back);
+    hero.mesh.visible = true; hero.blob.visible = true;
+}
+
+// ---------- departures and revivals ----------
+const HLW_GONE = {
+    1: { who: 'OZZY', nm: 'Ozzy the Gravekeeper', town: 'valkora', D: 'ozzy', hint: 'They say OZZY, the gravekeeper of VALKORA, can call the dead back out of the dust.',
+         pages: [ST_('OZZY', "Two handfuls of dust in one jar, eh? Mixed so well you couldn't pick 'em apart if you tried."), ST_('OZZY', "I've kept this graveyard forty years. I know the old words. The dead come back if somebody loves 'em loud enough. Stand back."), ST_('SYSTEM', 'Ozzy pours the dust on a grave, lifts his purple lantern and sings something very old. The dust rises, swirls, and becomes two people, holding hands.')],
+         after: [ST_('DRACULA', "...It seems the earth did not want us yet."), ST_('NOCTURNE', "Then we stay a while longer. Together."), ST_('SYSTEM', 'NOCTURNE and COUNT DRACULA are back in the party.')] },
+    2: { who: 'IMHOTEP', nm: 'Imhotep, Priest of Ptah', town: 'stoa', D: 'imhotep', hint: 'They say IMHOTEP, the old priest-architect, waits in the necropolis at STOA, and knows the words that call a king back from the Field of Reeds.',
+         pages: [ST_('IMHOTEP', "A king who passed the Weighing, and his friends still miss him? That is a rare thing."), ST_('IMHOTEP', "I built the first pyramid. I know a door or two into the Duat. Let us open one, just for a while."), ST_('SYSTEM', 'Imhotep draws a doorway in the sand with his staff. Light pours out, and a bandaged figure steps through, yawning.')],
+         after: [ST_('PHARAOH', "I was in the middle of a very good nap. ...But very well. The living need me more than the reeds do."), ST_('SYSTEM', 'THE BANDAGED PHARAOH is back in the party.')] },
+    6: { who: 'CASPER', nm: 'Casper of the Old Pier', town: 'brine', D: null, hint: 'They say a ghost named CASPER haunts the old pier at GLOOMWICK (Brinewick), and can call a spirit back out to play.',
+         pages: [ST_('CASPER', "Oh! Hello! You're Elsie's friends, aren't you? She talks about her ghost days all the time."), ST_('CASPER', "Being a ghost isn't so bad, when you've got friends. I can help her step out of her body again, just for the nights she wants. Watch!"), ST_('SYSTEM', 'Casper whistles. A pale sheet floats in off the sea, flutters, and fills up with a familiar, giggling shape.')],
+         after: [ST_('WISP', "I'M BACK! And this time I know exactly where my body is: home, asleep, safe. So let's go haunt something!"), ST_('SYSTEM', 'WISP THE WAILING is back in the party.')] }
+};
+const HLW_REV = { a: null, k: -1, x: 99999, z: 99999 };
+function hlwRevPlace() {
+    if (HLW_REV.a) { HLW_REV.a.mesh.visible = false; HLW_REV.a.blob.visible = false; if (HLW_REV.a.tag) HLW_REV.a.tag.visible = false; }
+    HLW_REV.x = 99999; HLW_REV.z = 99999;
+    const s = story.hlw, R = HLW.on && s && s.gone && HLW_GONE[HLW.k]; if (!R) return;
+    if (!HLW_REV.a || HLW_REV.k !== HLW.k) {
+        const fr = R.D ? npcSet(HLW_D[R.D]) : { down: [0, 1].map(i => spriteTex(hlwDraw({ D: HD({ line: '#1a2a4a' }), ov: 'ghost' }, 'down', i))) };
+        HLW_REV.a = makeActor(fr, 3.4, 0.85); HLW_REV.a.tag = makeLabel(R.nm.toUpperCase()); scene.add(HLW_REV.a.tag); HLW_REV.k = HLW.k;
+    }
+    const T = TOWNS.find(t => t.k === R.town), f = hlwFreeAt(T.x - 7, T.z - 5), a = HLW_REV.a;
+    placeActor(a, f.x, f.z); a.mesh.visible = true; a.blob.visible = true; a.tag.visible = true; a.tag.position.set(f.x, groundAt(f.x, f.z) + 4.4, f.z);
+    HLW_REV.x = f.x; HLW_REV.z = f.z;
+}
+INTERACTS.push({ get x() { return HLW_REV.x; }, get z() { return HLW_REV.z; }, r: 3.4,
+    label: () => HLW.on && story.hlw && story.hlw.gone && HLW_GONE[HLW.k] && !inCombat && !currentRoom && !currentZone ? '[E] CONSULT ' + HLW_GONE[HLW.k].who : '', act: () => hlwRevive() });
+function hlwRevive() {
+    const k = HLW.k, R = HLW_GONE[k]; if (dlg || !R || !story.hlw || !story.hlw.gone) return;
+    playDialogue(R.pages, () => {
+        story.hlw.gone = false; story.heirs = null; setControl(null);
+        if (k === 1) { const m = hlwJoinAlly('hlwdrac'); m.active = true; m.st.hp = m.st.maxHp; m.st.ep = m.st.maxEp; }
+        playerStats.hp = playerStats.maxHp; playerStats.ep = playerStats.maxEp;
+        hero.mesh.visible = true; hero.blob.visible = true; setActorFrame(hero);
+        const p = hero.mesh.position; fxFlash({ x: p.x, y: p.y, z: p.z }, 0xffe8c0, 9, 0.6); screenTint('#ffffff', 0.4, 300);
+        hlwRevPlace(); resetTrail(); refreshStats(); setObjective(); updateMinimap();
+        playDialogue(R.after, () => autoSave());
+    });
+}
+function hlwDepart(k) {
+    const s = story.hlw; s.gone = true;
+    if (k === 1) { const i = party.findIndex(m => m.key === 'hlwdrac'); if (i >= 0) { const m = party[i]; party.splice(i, 1); m.actor.mesh.visible = false; m.actor.blob.visible = false; if (m.rideActor) { m.rideActor.mesh.visible = false; m.rideActor.blob.visible = false; } } }
+    if (!party.some(m => m.key === 'hlwpet')) hlwJoinAlly('hlwpet');
+    const pet = party.find(m => m.key === 'hlwpet'); if (pet && !pet.active) { if (activeAllies().length >= 3) activeAllies().pop().active = false; pet.active = true; }
+    story.heirs = activeAllies().map(m => m.key).slice(0, 4);
+    setControl(story.heirs);
+    hero.mesh.visible = true; hero.blob.visible = true;
+    party.forEach(m => { m.st.hp = m.st.maxHp; m.st.ep = m.st.maxEp; });
+    hlwRevPlace(); resetTrail(); refreshStats(); setObjective(); updateMinimap();
+    const names = story.heirs.map(q => ALLY_DEFS[q].name.toUpperCase()).join(', ');
+    playDialogue([ST_('SYSTEM', `The story now belongs to ${names}. Roam the island as any of them (the ROAM AS button), finish the island's side quests (QUESTS tab), and keep exploring.`), ST_('SYSTEM', HLW_GONE[k].hint)], () => autoSave());
+}
+// the last chapter of a departing hero's story
+const _hlwAdvanceN = hlwAdvance;
+hlwAdvance = function (c) {
+    const s = story.hlw, k = HLW.k;
+    if (!s || !HLW_GONE[k] || s.st + 1 < hlwStory().ch.length) return _hlwAdvanceN(c);
+    const rew = [];
+    if (c.wpn) { const id = 'hlww' + k + c.wpn; OWNED.weapons[id] = 1; EQUIP.kaelen.weapon = id; rew.push(hlwDef().sh + ' wields ' + WEAPONS[id].name.toUpperCase() + '.'); }
+    if (c.gold) { story.gold = (story.gold || 0) + c.gold; rew.push('+' + c.gold + ' gold.'); }
+    s.st++; s.done = true;
+    hlwPlace(); setObjective(); refreshStats(); updateMinimap();
+    const pre = rew.length ? [ST_('REWARD', rew.join(' '))] : [];
+    if (k === 1) playDialogue(pre, async () => { await hlwVampEnd(); playDialogue(hlwStory().end, () => hlwDepart(k)); });
+    else playDialogue(pre.concat(hlwStory().end), () => hlwDepart(k));
+};
+const _hlwObjectiveN = hlwObjective;
+hlwObjective = function () {
+    const s = story.hlw; if (!s || !s.done) return _hlwObjectiveN();
+    return hlwDef().nm.toUpperCase() + ': story complete. ' + (s.gone && HLW_GONE[HLW.k] ? HLW_GONE[HLW.k].hint + ' ' : '') + 'Tap ROAM AS to choose who you walk as, and finish the side quests in the QUESTS tab.';
+};
+
+// ---------- roam as anyone after the story ----------
+// the Halloween hero as a follower (and battle body) while someone else leads
+HLW.dbl = null;
+function hlwDouble() {
+    if (!HLW.dbl || HLW.dbl.k !== HLW.k) {
+        if (HLW.dbl) { scene.remove(HLW.dbl.mesh); scene.remove(HLW.dbl.blob); }
+        const S = hlwHeroSet(hlwDef()), a = makeActor(S, 3.4, 0.85);
+        Object.assign(a, { atkR: S.atkR, atkL: S.atkL, hurtR: S.hurtR, hurtL: S.hurtL, k: HLW.k }); a.mesh.visible = false; a.blob.visible = false; HLW.dbl = a;
+    }
+    return HLW.dbl;
+}
+const _charEntryN = charEntry;
+charEntry = function (k) { const c = _charEntryN(k); if (c && k === 'kaelen' && HLW.on && CONTROL && CONTROL.keys[0] !== 'kaelen') c.actor = hlwDouble(); return c; };
+animated.push((t, dt) => {
+    const d = HLW.dbl; if (!d || inCombat) return;
+    const on = HLW.on && CONTROL && CONTROL.keys.indexOf('kaelen') > 0 && !RIDE.on && !CS.on;
+    if (!on) { d.mesh.visible = false; d.blob.visible = false; return; }
+    d.mesh.visible = true; d.blob.visible = true;
+    const idx = Math.min(trail.length - 1, (followers().length + 1) * 9);
+    if (idx < 0) { placeActor(d, hero.mesh.position.x + 0.9, hero.mesh.position.z + 1.4); return; }
+    const p = trail[idx], q = d.mesh.position, dx = p.x - q.x, dz = p.z - q.z;
+    if (Math.hypot(dx, dz) > 0.02) { placeActor(d, p.x, p.z); d.dir = Math.abs(dx) > Math.abs(dz) ? (dx > 0 ? 'right' : 'left') : (dz > 0 ? 'down' : 'up'); d.anim += dt * 9; } else d.anim = 0;
+    setActorFrame(d);
+});
+function hlwRoamAs(key) {
+    const gone = !!story.hlw.gone;
+    if (key === 'kaelen') { story.heirs = null; }
+    else {
+        const m = party.find(q => q.key === key); if (!m) return;
+        if (!m.active) { if (activeAllies().length >= 3) activeAllies().pop().active = false; m.active = true; }
+        const rest = activeAllies().map(q => q.key).filter(q => q !== key);
+        story.heirs = [key].concat(gone ? [] : ['kaelen']).concat(rest).slice(0, 4);
+    }
+    setControl(story.heirs || null); resetTrail(); refreshStats(); updateMinimap();
+    showDialogue('You are now roaming as ' + (key === 'kaelen' ? hlwDef().nm : ALLY_DEFS[key].name) + '.', 'ROAM AS');
+    autoSave();
+}
+function hlwRoamPick() {
+    if (!HLW.on || !story.hlw || !story.hlw.done || dlg || inCombat || CS.on) return;
+    const lead = leaderKey(), opts = [];
+    if (!story.hlw.gone) opts.push({ label: hlwDef().nm + (lead === 'kaelen' ? ' (leading)' : ''), fn: () => hlwRoamAs('kaelen') });
+    party.forEach(m => opts.push({ label: m.def.name + (lead === m.key ? ' (leading)' : ''), fn: () => hlwRoamAs(m.key) }));
+    opts.push({ label: 'Cancel', fn: () => {} });
+    showChoice('Who do you want to roam the world as?', opts);
+}
+(function () {
+    const b = document.createElement('button'); b.id = 'btn-hlw-roam'; b.innerText = 'ROAM AS';
+    b.style.cssText = 'position:fixed;top:92px;left:50%;transform:translateX(-50%);z-index:6;display:none;padding:5px 12px;font:bold 12px "Courier New",monospace;color:#ffd27a;background:rgba(90,10,30,.85);border:2px solid #ff8a30;border-radius:6px;cursor:pointer';
+    b.onclick = () => hlwRoamPick(); document.body.appendChild(b);
+    animated.push(() => { const show = HLW.on && story.hlw && story.hlw.done && !TITLE.on && !inCombat && !CS.on && !dlg && !choiceOpen && !inventoryOpen; b.style.display = show ? '' : 'none'; });
+})();
+// keep everything in place on load
+const _loadGameN = loadGame;
+loadGame = function () { const ok = _loadGameN(); if (ok && HLW.on) { hlwRevPlace(); setControl(story.heirs || null); resetTrail(); } return ok; };
+const _hlwStartN = hlwStart;
+hlwStart = function (k) { story.heirs = null; setControl(null); _hlwStartN(k); hlwRevPlace(); };
 
 showTitle();
 </script>
