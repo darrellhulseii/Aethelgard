@@ -4793,7 +4793,7 @@ function executeTurn() {
     const isHealArt = combo && combo.mult === 0;
     const bonus = combo && !isHealArt ? Math.round(baseSum * (mult - 1)) : 0, STEP = 330, tEnd = hits.length * STEP;
     const bid = BID;
-    hits.forEach((t, i) => setTimeout(() => { if (!live(bid)) return; unitHitFX(u, f, base[i], t); }, i * STEP));
+    hits.forEach((t, i) => setTimeout(() => { if (!live(bid)) return; unitHitFX(u, f, base[i], t, combo, i, hits.length); }, i * STEP));
     if (combo) setTimeout(() => {
         if (!live(bid)) return;
         ACT = { u: u, a: vis(u), home: u.home };
@@ -11268,6 +11268,271 @@ const _loadGameN = loadGame;
 loadGame = function () { const ok = _loadGameN(); if (ok && HLW.on) { hlwRevPlace(); setControl(story.heirs || null); resetTrail(); } return ok; };
 const _hlwStartN = hlwStart;
 hlwStart = function (k) { story.heirs = null; setControl(null); _hlwStartN(k); hlwRevPlace(); };
+
+// =====================================================================
+// GEAR GRAPHICS II + COMBO CHOREOGRAPHY
+// 1) Every gear gets extra armour detail, pulsing reactor glow, lens halos, thruster jets, weapon auras,
+//    orbiting aether motes, a ground glow, idle head/torso life and footfall dust.
+// 2) Inside a combo (deathblow chain) every strike has its own body move, its own impact effect and (in a gear)
+//    its own limb pose, chosen per character + per combo + per strike so no two combos play the same way.
+// =====================================================================
+const gxHash = s => { let h = 2166136261; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; };
+const gxT = (g, x, y, z, rx, ry, rz) => { if (rx) g.rotateX(rx); if (ry) g.rotateY(ry); if (rz) g.rotateZ(rz); return g.translate(x || 0, y || 0, z || 0); };
+const gxB = (w, h, d, x, y, z, rx, ry, rz) => gxT(new THREE.BoxGeometry(w, h, d), x, y, z, rx, ry, rz);
+const gxC = (rt, rb, h, n, x, y, z, rx, ry, rz) => gxT(new THREE.CylinderGeometry(rt, rb, h, n), x, y, z, rx, ry, rz);
+const gxN = (r, h, n, x, y, z, rx, ry, rz) => gxT(new THREE.ConeGeometry(r, h, n), x, y, z, rx, ry, rz);
+const gxS = (r, x, y, z) => new THREE.SphereGeometry(r, 8, 6).translate(x || 0, y || 0, z || 0);
+const gxO = (R, r, x, y, z, rx, ry, rz) => gxT(new THREE.TorusGeometry(R, r, 6, 28), x, y, z, rx, ry, rz);
+
+function gearEnhance(rig, key) {
+    const G = GEARS[key]; if (!G || !G.pal || rig.gx) return rig;
+    const P = G.pal, RD = P.RD || '#00e5ff', Y = P.Y || '#f6c945', K = P.K || '#141a2c', S = P.S || '#4a6fa8', SL = P.SL || S, SD = P.SD || S, PI = Math.PI;
+    const glow = new THREE.MeshBasicMaterial({ vertexColors: true });
+    const aura = new THREE.MeshBasicMaterial({ color: RD, transparent: true, opacity: 0.3, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide });
+    const gx = rig.gx = { glow: glow, aura: aura, halos: [], jets: [], spin: [], motes: null, under: null, seed: (gxHash(key) % 63) / 10 };
+    const T = rig.torso, H = rig.head, AL = rig.armL, AR = rig.armR, W = rig.weapon, OH = rig.offhand, custom = !!rig.hlwStyle;
+    const add = (parent, parts, m) => { const o = new THREE.Mesh(mergeGeos(parts), m || rig.mat); o.castShadow = !m; parent.add(o); return o; };
+    const lit = (parent, parts) => add(parent, parts, glow);
+    const halo = (parent, size, x, y, z, color) => {
+        const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex, color: color || RD, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, opacity: 0.6 }));
+        s.position.set(x, y, z); s.scale.set(size, size, 1); s.gs = size; parent.add(s); gx.halos.push(s); return s;
+    };
+    const jet = (parent, x, y, z, r, len) => {
+        add(parent, [[gxC(r * 1.15, r * 0.8, r * 1.6, 8, x, y + r * 0.8, z), K], [gxC(r * 1.3, r * 1.3, r * 0.3, 8, x, y, z), Y]]);
+        const g = new THREE.Group(); g.position.set(x, y, z); parent.add(g);
+        g.add(new THREE.Mesh(mergeGeos([[gxN(r, len, 8, 0, -len / 2, 0, PI), RD], [gxN(r * 0.5, len * 0.6, 6, 0, -len * 0.3, 0, PI), '#ffffff']]), glow));
+        const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex, color: RD, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, opacity: 0.7 }));
+        s.scale.set(r * 4, r * 4, 1); s.position.y = -r * 0.5; g.add(s);
+        gx.jets.push(g);
+    };
+    const blade = (parent, w, h, d, x, y, z) => { const o = new THREE.Mesh(gxB(w, h, d, x, y, z), aura); parent.add(o); return o; };
+    const sides = fn => [1, -1].forEach(fn);
+    rig.mat.metalness = 0.5; rig.mat.roughness = 0.42;
+
+    // ---- every gear: ground glow + orbiting aether motes ----
+    const under = gx.under = new THREE.Mesh(new THREE.RingGeometry(2.3, 3.3, 30),
+        new THREE.MeshBasicMaterial({ color: RD, transparent: true, opacity: 0.2, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }));
+    under.rotation.x = -PI / 2; under.position.y = 0.09; rig.root.add(under);
+    const motes = gx.motes = new THREE.Group(); motes.position.y = rig.hipY + 1.5; rig.root.add(motes);
+    for (let i = 0; i < 6; i++) {
+        const a = i / 6 * PI * 2, s = new THREE.Sprite(new THREE.SpriteMaterial({ map: dotTex, color: i % 2 ? RD : '#ffffff', transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, opacity: 0.75 }));
+        s.position.set(Math.sin(a) * 4.3, (i % 3 - 1) * 2.2, Math.cos(a) * 4.3); s.by = s.position.y; s.scale.set(0.42, 0.42, 1); motes.add(s);
+    }
+    if (custom) return rig;       // costume gears keep their own silhouette
+
+    switch (key) {
+    case 'kaelen':     // AEGIS: wing binders, collar, vents, light strips, glowing shield rim, blade aura
+        add(T, [[gxB(0.25, 3.8, 1.3, 1.7, 3.7, -2.1, 0.25, 0, -0.5), S], [gxB(0.25, 3.8, 1.3, -1.7, 3.7, -2.1, 0.25, 0, 0.5), S], [gxB(2.3, 0.5, 1.9, 0, 4.2, -0.1), SD],
+            [gxB(0.5, 0.9, 0.5, 1.2, 4.3, 0.3), Y], [gxB(0.5, 0.9, 0.5, -1.2, 4.3, 0.3), Y]]);
+        lit(T, [[gxB(0.9, 0.14, 0.1, 0.95, 3.5, 1.33, 0, 0, 0.35), RD], [gxB(0.9, 0.14, 0.1, -0.95, 3.5, 1.33, 0, 0, -0.35), RD], [gxB(3.68, 0.08, 2.28, 0, 1.5, 0), RD],
+            [gxB(0.1, 3.4, 0.1, 1.72, 3.75, -2.8, 0.25, 0, -0.5), RD], [gxB(0.1, 3.4, 0.1, -1.72, 3.75, -2.8, 0.25, 0, 0.5), RD]]);
+        [rig.legL, rig.legR].forEach(l => { add(l, [[gxN(0.3, 0.9, 4, 0, -2.25, 1.05, PI / 2), Y]]); lit(l, [[gxB(0.12, 1.4, 0.1, 0, -3.3, 0.73), RD], [gxB(1.34, 0.08, 1.44, 0, -3.95, 0), RD]]); });
+        [AL, AR].forEach(a => lit(a, [[gxB(0.12, 1.4, 0.1, 0, -3.0, 0.63), RD]]));
+        add(H, [[gxB(0.08, 1.7, 0.08, 0, 1.9, -0.75, -0.3), Y]]);
+        lit(OH, [[gxB(0.08, 4.3, 0.08, 0.79, 0.9, 1.52), RD], [gxB(0.08, 4.3, 0.08, 0.79, 0.9, -1.12), RD], [gxB(0.08, 0.08, 2.6, 0.79, 3.02, 0.2), RD], [gxS(0.32, 0.88, 1.6, 0.2), '#ffffff']]);
+        blade(W, 1.0, 5.8, 0.55, 0, 3.6, 0);
+        jet(T, 0.8, 1.35, -1.7, 0.36, 1.5); jet(T, -0.8, 1.35, -1.7, 0.36, 1.5);
+        halo(T, 2.6, 0, 2.8, 1.75); halo(H, 1.5, 0, 0.1, 1.0); halo(OH, 1.6, 0.95, 1.6, 0.2, '#ffffff');
+        break;
+    case 'lira':       // WREN: tail fan, crest plumes, lit talons and chest chevrons
+        add(T, [[gxB(0.5, 0.1, 2.6, 0, 1.0, -1.6, 0.5), SD], [gxB(0.45, 0.1, 2.3, 0.7, 1.0, -1.5, 0.5, 0.35), SL], [gxB(0.45, 0.1, 2.3, -0.7, 1.0, -1.5, 0.5, -0.35), SL]]);
+        lit(T, [[gxS(0.17, 0, 1.68, -2.8), RD], [gxS(0.14, 1.2, 1.6, -2.45), RD], [gxS(0.14, -1.2, 1.6, -2.45), RD],
+            [gxB(0.8, 0.1, 0.08, 0.36, 3.25, 1.03, 0, 0, 0.5), RD], [gxB(0.8, 0.1, 0.08, -0.36, 3.25, 1.03, 0, 0, -0.5), RD], [gxB(0.6, 0.1, 0.08, 0.28, 2.95, 1.03, 0, 0, 0.5), RD], [gxB(0.6, 0.1, 0.08, -0.28, 2.95, 1.03, 0, 0, -0.5), RD]]);
+        add(H, [[gxN(0.16, 1.2, 5, 0.32, 0.9, -0.7, -0.9), SL], [gxN(0.16, 1.2, 5, -0.32, 0.9, -0.7, -0.9), SL]]);
+        [rig.legL, rig.legR].forEach(l => lit(l, [[gxS(0.14, 0.4, -4.4, 1.74), RD], [gxS(0.14, -0.4, -4.4, 1.74), RD], [gxS(0.2, 0, -2.0, 1.4), RD]]));
+        halo(T, 2.0, 0, 2.4, 1.35); halo(H, 1.3, 0, 0.15, 1.25); halo(W, 1.2, 0, 0, 3.9);
+        break;
+    case 'cassius':    // PHALANX: lit shield rim + lambda, greave bands, pennant, back jets
+        lit(OH, [[gxO(2.5, 0.07, 0.97, 0.6, 0.3, 0, PI / 2), RD], [gxB(0.08, 1.9, 0.16, 1.0, 0.6, 0.72, 0.42), RD], [gxB(0.08, 1.9, 0.16, 1.0, 0.6, -0.12, -0.42), RD]]);
+        lit(T, [[gxB(0.1, 1.7, 0.08, 0, 2.9, 1.48), RD], [gxB(4.24, 0.08, 2.64, 0, 1.35, 0), RD]]);
+        [rig.legL, rig.legR].forEach(l => lit(l, [[gxB(1.56, 0.1, 1.56, 0, -2.4, 0.05), RD], [gxB(1.56, 0.1, 1.56, 0, -3.6, 0.05), RD]]));
+        [AL, AR].forEach(a => lit(a, [[gxB(1.3, 0.1, 1.3, 0, -2.3, 0), RD]]));
+        add(W, [[gxB(0.06, 1.0, 1.5, 0, 6.5, -0.8), '#b5603a'], [gxB(0.06, 0.5, 0.7, 0, 5.8, -0.45), '#8a4424']]);
+        blade(W, 0.9, 2.0, 0.9, 0, 8.3, 0);
+        jet(T, 1.3, 2.0, -1.45, 0.4, 1.6); jet(T, -1.3, 2.0, -1.45, 0.4, 1.6);
+        halo(T, 2.2, 0, 2.2, 1.8); halo(H, 1.4, 0, 0.25, 1.15); halo(OH, 2.2, 1.2, 0.6, 0.3);
+        break;
+    case 'maren': {    // LANTERN: rune bands on the bell, orbiting embers, brighter flame
+        const runes = [[gxO(2.72, 0.07, 0, 1.0, 0, PI / 2), RD], [gxO(2.06, 0.06, 0, 2.6, 0, PI / 2), RD]];
+        for (let i = 0; i < 8; i++) { const a = i / 8 * PI * 2; runes.push([gxB(0.16, 0.55, 0.08, Math.sin(a) * 2.42, 1.8, Math.cos(a) * 2.42, 0, a), i % 2 ? RD : '#fff6c8']); }
+        lit(rig.root, runes);
+        const orb = new THREE.Group(); H.add(orb); orb.position.y = 0.3;
+        lit(orb, [[gxS(0.18, 1.9, 0, 0), '#fff6c8'], [gxS(0.14, -1.9, 0.3, 0), RD], [gxS(0.16, 0, -0.3, 1.9), RD], [gxS(0.12, 0, 0.2, -1.9), '#fff6c8']]);
+        gx.spin.push({ o: orb, ax: 'y', sp: 1.6 });
+        halo(H, 3.4, 0, 0.4, 0, '#fff0b0'); halo(W, 1.8, 0, -1.9, 0); halo(OH, 1.8, 0, -1.9, 0);
+        break; }
+    case 'nils':       // GLACIER: glowing frost cracks, frozen fists, shoulder frost, heavy jets
+        lit(T, [[gxB(0.1, 1.3, 0.08, 1.25, 3.7, 1.84, 0, 0, 0.4), RD], [gxB(0.1, 0.9, 0.08, 1.6, 2.8, 1.84, 0, 0, -0.5), RD], [gxB(0.1, 1.3, 0.08, -1.25, 3.7, 1.84, 0, 0, -0.4), RD], [gxB(0.1, 0.9, 0.08, -1.6, 2.8, 1.84, 0, 0, 0.5), RD],
+            [gxB(5.04, 0.08, 3.24, 0, 1.45, 0), RD]]);
+        [rig.legL, rig.legR].forEach((l, i) => lit(l, [[gxB(0.1, 1.2, 0.08, i ? -0.3 : 0.3, -3.1, 1.03, 0, 0, i ? -0.3 : 0.3), RD], [gxB(0.1, 0.7, 0.08, i ? 0.35 : -0.35, -3.4, 1.03, 0, 0, i ? 0.4 : -0.4), RD]]));
+        [AL, AR].forEach(a => { lit(a, [[gxB(1.84, 0.1, 1.84, 0, -2.6, 0), RD]]); halo(a, 2.6, 0, 1.7, 0, '#dff6ff'); halo(a, 2.2, 0, -4.8, 0, '#bff8ff'); });
+        blade(W, 0.7, 3.4, 2.6, 0, 4.6, 1.0);
+        jet(T, 1.5, 2.6, -1.85, 0.5, 1.9); jet(T, -1.5, 2.6, -1.85, 0.5, 1.9);
+        halo(T, 2.8, 0, 3.2, 2.4); halo(H, 1.6, 0, 0.1, 1.25);
+        break;
+    case 'silver': {   // COMET: a second counter-rotating ring, star beads, lit fins
+        const r2 = new THREE.Group(); r2.position.set(0, 3.0, -0.2); r2.rotation.x = PI / 2 + 0.55; T.add(r2);
+        lit(r2, [[gxO(2.6, 0.05, 0, 0, 0), RD], [gxS(0.2, 2.6, 0, 0), '#ffffff'], [gxS(0.16, -2.6, 0, 0), Y], [gxS(0.14, 0, 2.6, 0), '#ffffff']]);
+        gx.spin.push({ o: r2, ax: 'z', sp: -1.3 });
+        lit(T, [[gxB(0.08, 3.4, 0.08, 0.98, 4.05, -1.62, 0, 0, -0.35), RD], [gxB(0.08, 3.4, 0.08, -0.98, 4.05, -1.62, 0, 0, 0.35), RD]]);
+        lit(H, [[gxB(0.06, 1.5, 0.08, 0, 1.3, -0.58), RD]]);
+        [AL, AR].forEach(a => halo(a, 1.3, 0, 0.4, 0, Y));
+        halo(T, 2.2, 0, 2.6, 1.45); halo(H, 1.3, 0, 0.1, 0.95); halo(W, 2.4, 0, -0.2, 0.9, '#c8f0ff'); halo(OH, 2.4, 0, -0.2, 0.9, '#c8f0ff');
+        break; }
+    case 'vanguard':   // OBSIDIAN: furnace seams, lit horn tips, cannon muzzle glare
+        lit(T, [[gxB(5.24, 0.08, 3.24, 0, 1.45, 0), RD], [gxB(0.1, 1.6, 0.08, 1.4, 3.6, 1.84, 0, 0, 0.3), RD], [gxB(0.1, 1.6, 0.08, -1.4, 3.6, 1.84, 0, 0, -0.3), RD]]);
+        [AL, AR].forEach(a => lit(a, [[gxB(1.84, 0.1, 1.84, 0, -2.6, 0), RD]]));
+        halo(T, 3.2, 0, 3.0, 2.5); halo(H, 1.7, 0, 0.15, 1.3); halo(W, 3.0, 0, 6.8, 0); halo(H, 1.0, 1.6, 2.5, 0, Y); halo(H, 1.0, -1.6, 2.5, 0, Y);
+        jet(T, 1.6, 2.6, -2.1, 0.45, 1.7); jet(T, -1.6, 2.6, -2.1, 0.45, 1.7);
+        break;
+    case 'beauregard': // SCARLET: saber aura, lit scarf tips
+        blade(W, 0.7, 5.8, 0.4, 0, 3.5, 0);
+        lit(T, [[gxS(0.2, 0.5, 4.5, -3.7), RD], [gxS(0.18, -0.3, 4.9, -3.7), RD], [gxB(3.04, 0.07, 1.84, 0, 1.4, 0), RD]]);
+        halo(T, 1.9, 0, 2.5, 1.4); halo(H, 1.3, 0, 0.05, 0.95);
+        break;
+    case 'silverelf':  // ARGENT: staff star, crown light
+        halo(W, 3.4, 0, 7.3, 0); halo(H, 2.2, 0, 1.0, 0, Y); halo(T, 2.2, 0, 1.6, 1.7);
+        break;
+    }
+    return rig;
+}
+const _buildGearRigGX = buildGearRig;
+buildGearRig = function (key) { const rig = _buildGearRigGX(key); try { gearEnhance(rig, key); } catch (e) { console.warn('gear detail skipped', key, e); } return rig; };
+
+// ---- per-strike limb poses for gears: (rig, k 0..1, held weapon?) ----
+const gxEase = k => 1 - Math.pow(1 - Math.min(1, k * 1.5), 3);
+const GX_POSES = [
+    (r, k, h) => { const q = gxEase(k); r.armR.rotation.set(-3.0 + 2.5 * q, 0, -0.1); if (h) r.weapon.rotation.x = Math.PI; r.torso.rotation.x = -0.2 + 0.5 * q; },                      // overhead chop
+    (r, k, h) => { const q = gxEase(k); r.torso.rotation.y = 0.9 - 1.8 * q; r.armR.rotation.set(-1.5, 0, -0.2); r.armL.rotation.z = 0.5; if (h) r.weapon.rotation.x = Math.PI; },          // sweep right to left
+    (r, k, h) => { const q = gxEase(k); r.torso.rotation.y = -0.9 + 1.8 * q; r.armR.rotation.set(-1.5, 0, 0.4); r.armL.rotation.z = 0.3; if (h) r.weapon.rotation.x = Math.PI; },          // sweep left to right
+    (r, k, h) => { const q = gxEase(k); r.armR.rotation.set(-Math.PI / 2, 0, 0); r.armR.position.z = -0.8 + 2.8 * q; r.torso.rotation.y = -0.25; if (h) r.weapon.rotation.x = Math.PI; },  // straight thrust
+    (r, k, h) => { const q = gxEase(k); r.armR.rotation.set(-0.2 - 2.7 * q, 0, 0); r.torso.rotation.x = 0.25 - 0.55 * q; if (h) r.weapon.rotation.x = Math.PI; },                           // rising uppercut
+    (r, k) => { const e = Math.sin(Math.PI * k); r.armL.rotation.set(-Math.PI / 2, 0, 0); r.armL.position.z = 2.2 * e; r.torso.rotation.y = -0.5 * e; r.armR.rotation.x = -0.4; },          // off-hand / shield bash
+    (r, k) => { const e = Math.sin(Math.PI * k); if (r.legR) { r.legR.rotation.x = -1.5 * e; r.legL.rotation.x = 0.3 * e; r.torso.rotation.x = -0.25 * e; r.armR.rotation.x = 0.6 * e; r.armL.rotation.x = 0.6 * e; }
+                 else { r.torso.rotation.x = 0.6 * e; r.armR.rotation.x = -2.2; r.armL.rotation.x = -2.2; } },                                                                                 // kick (or ram, for hover frames)
+    (r, k) => { const q = gxEase(k); r.armR.rotation.set(-3.0 + 2.6 * q, 0, 0.3); r.armL.rotation.set(-3.0 + 2.6 * q, 0, -0.3); r.torso.rotation.x = -0.3 + 0.75 * q; },                    // two-handed slam
+    (r, k, h) => { r.armR.rotation.set(-0.2, 0, -1.45); r.armL.rotation.set(-0.2, 0, 1.45); if (h) r.weapon.rotation.x = Math.PI; },                                                        // whirl, arms out
+    (r, k, h) => { const q = gxEase(k); r.armR.rotation.set(-1.5, 0, -1.0 + 1.7 * q); r.armL.rotation.set(-1.5, 0, 1.0 - 1.7 * q); if (h) r.weapon.rotation.x = Math.PI; },                 // cross cut
+    (r, k, h) => { const q = gxEase(k); r.torso.rotation.y = -1.1 + 1.8 * q; r.armR.rotation.set(-1.3, 0, 0.5 - 0.9 * q); if (h) r.weapon.rotation.x = Math.PI; },                          // backhand
+    (r, k, h) => { const q = gxEase(k); r.armR.rotation.set(-2.7 + 1.6 * q, 0, 0); r.armL.rotation.x = -1.0; r.torso.rotation.x = 0.4 * q; if (h) r.weapon.rotation.x = 0.2; }              // reverse-grip plunge
+];
+const _animGearGX = animGear;
+animGear = function (a, o) {
+    _animGearGX(a, o);
+    if (!a || !a.rig) return;
+    const r = a.rig, t = time, gx = r.gx, mv = o.moving ? 1 : 0, hot = mv || o.atk, sd = gx ? gx.seed : 0;
+    // a little life: the head looks around, the frame shifts its weight
+    if (o.atk) { r.head.rotation.set(0.1, 0, 0); r.torso.rotation.z = 0; }
+    else if (o.hurt) { r.head.rotation.set(-0.3, 0, 0); r.torso.rotation.z = 0; }
+    else { r.head.rotation.set(mv ? 0.08 : Math.sin(t * 1.1 + sd) * 0.03, Math.sin(t * 0.7 + sd) * 0.16 * (1 - mv), 0); r.torso.rotation.z = mv ? Math.sin(t * 9) * 0.035 : Math.sin(t * 1.3 + sd) * 0.012; }
+    const st = a.strike;
+    if (st) {
+        const k = (performance.now() - st.t0) / st.dur;
+        if (k >= 1 || !o.battle) { a.strike = null; if (r.hlwStyle !== 'fist' && r.hlwStyle !== 'blaster') r.armL.position.z = 0; }
+        else GX_POSES[st.pose](r, k, st.held);
+    }
+    if (!gx) return;
+    gx.glow.color.setScalar(0.85 + 0.15 * Math.sin(t * 3 + sd) + (o.atk ? 0.3 : 0));
+    gx.aura.opacity = o.atk ? 0.8 : 0.24 + 0.12 * Math.sin(t * 4 + sd);
+    gx.halos.forEach((h, i) => { const z = h.gs * (0.9 + 0.14 * Math.sin(t * 5 + i + sd) + (o.atk ? 0.45 : 0)); h.scale.set(z, z, 1); h.material.opacity = o.hurt ? 1 : 0.5 + 0.2 * Math.sin(t * 3 + i); });
+    gx.jets.forEach((j, i) => j.scale.set(1, (hot ? 1.7 : 0.7) + Math.sin(t * 31 + i * 2) * 0.18, 1));
+    gx.spin.forEach(s => { s.o.rotation[s.ax] = t * s.sp * (o.atk ? 3 : 1); });
+    if (gx.motes) { gx.motes.rotation.y = t * (o.atk ? 2.2 : 0.6); gx.motes.children.forEach((m, i) => { m.position.y = m.by + Math.sin(t * 1.7 + i) * 0.5; }); }
+    if (gx.under) { gx.under.material.opacity = 0.16 + 0.07 * Math.sin(t * 2.5 + sd) + (hot ? 0.2 : 0); gx.under.rotation.z = t * 0.5; }
+    if (mv && !o.battle && !r.hover && a.mesh.visible && t - (a.gxDust || 0) > 0.34) {
+        a.gxDust = t; const p = a.mesh.position;
+        particles({ x: p.x, y: p.y - a.half + 0.4, z: p.z }, 0xa09a8c, 3, { speed: 2.4, up: 0.5, size: 0.55, life: 0.5 });
+    }
+};
+
+// ---------- combo strikes ----------
+// body moves: k 0..1 -> { f: forward (x reach), s: sideways, y: height, rz: lean, spin: full turns }, hit = when it lands
+const GX_MOVES = [
+    { hit: 0.42, at: k => ({ f: Math.sin(Math.PI * k) }) },                                                                                          // lunge
+    { hit: 0.5,  at: k => ({ f: Math.sin(Math.PI * k) * 0.9, y: 2.6 * Math.sin(Math.PI * k), rz: -0.5 * Math.sin(2 * Math.PI * k) }) },               // leaping chop
+    { hit: 0.45, at: k => ({ f: Math.sin(Math.PI * k), spin: k }) },                                                                                  // spinning slash
+    { hit: 0.3,  at: (k, g) => ({ f: 1.5 * (k < 0.5 ? easeIO(k * 2) : 1 - easeIO(k * 2 - 1)), s: 0.5 * g * Math.sin(Math.PI * k) }), ghost: true },   // dash-through
+    { hit: 0.55, at: k => ({ f: Math.sin(Math.PI * k) * 0.95, y: 2.2 * Math.max(0, Math.sin(Math.PI * (k - 0.25) / 0.75)), rz: 0.35 * Math.sin(Math.PI * k) }) },   // uppercut
+    { hit: 0.5,  at: (k, g) => ({ f: Math.sin(Math.PI * k), s: g * 1.6 * Math.cos(Math.PI * k) * Math.sin(Math.PI * k) }) },                          // low sweep
+    { hit: 0.45, at: k => ({ f: Math.sin(Math.PI * k) * 0.9, s: 1.5 * Math.sin(Math.PI * k), rz: 0.3 * Math.sin(Math.PI * k) }) },                    // flank cut, near side
+    { hit: 0.45, at: k => ({ f: Math.sin(Math.PI * k) * 0.9, s: -1.5 * Math.sin(Math.PI * k), rz: -0.3 * Math.sin(Math.PI * k) }) },                  // flank cut, far side
+    { hit: 0.35, at: k => ({ f: Math.sin(Math.PI * k) * 0.8, y: k > 0.4 ? 2.4 * Math.sin(Math.PI * (k - 0.4) / 0.6) : 0, spin: k > 0.45 ? (k - 0.45) / 0.55 : 0 }) },   // strike, then backflip away
+    { hit: 0.5,  at: (k, g) => ({ f: Math.sin(Math.PI * k), s: g * 1.1 * Math.sin(3 * Math.PI * k) }) },                                              // zigzag
+    { hit: 0.5,  at: k => ({ f: Math.sin(Math.PI * k), y: k < 0.5 ? 3.2 * Math.sin(2 * Math.PI * k) : 0, rz: k < 0.5 ? -0.4 * k * 2 : 0 }) },         // diving slam
+    { hit: 0.25, at: k => ({ f: Math.abs(Math.sin(2 * Math.PI * k)) }), echo: 0.75 },                                                                 // double tap
+    { hit: 0.5,  at: k => ({ f: 1.6 * Math.sin(Math.PI * k), y: 3.0 * Math.sin(Math.PI * k), rz: -0.3 * Math.sin(Math.PI * k) }), ghost: true },      // vault over
+    { hit: 0.33, at: k => ({ f: k < 0.35 ? easeIO(k / 0.35) : 1 - (k - 0.35) / 0.65, rz: -0.28 * Math.sin(Math.PI * k) }) },                          // shoulder charge
+    { hit: 0.5,  at: (k, g) => ({ f: Math.sin(Math.PI * k) * 0.85, s: g * 1.2 * Math.sin(2 * Math.PI * k), spin: k }) },                              // pirouette
+    { hit: 0.72, at: k => ({ f: k < 0.5 ? -0.3 * Math.sin(2 * Math.PI * k) : 1.1 * Math.sin(Math.PI * (k - 0.5) * 2), y: 1.2 * Math.sin(Math.PI * k) }) }   // hover, then stab
+];
+// impact effects: (p foe pos, up attacker pos, c1, c2, K size)
+const GX_HITS = [
+    (p, up, c1, c2, K) => { dirSlash(p, -0.9, c1, 5 * K, false); dirSlash(p, -0.9, c2, 5 * K, true); },                                                                     // cross
+    (p, up, c1, c2, K) => { [-0.5, 0, 0.5].forEach((o, i) => dirSlash({ x: p.x, y: p.y + o, z: p.z }, -0.35 + o, i === 1 ? c2 : c1, 3.6 * K, false, 0.26)); },             // fan of three
+    (p, up, c1, c2, K) => { dirSlash(p, 1.1, c1, 5.5 * K, false, 0.34); beamFX({ x: p.x, y: GROUND, z: p.z }, c1, 7 * K, 0.7 * K, 0.4); },                                  // rising cut + pillar
+    (p, up, c1, c2, K) => { thrustFX({ x: up.x + 0.8, y: p.y }, p, c1, 0.6 * K); fxFlash({ x: p.x + 1.3, y: p.y, z: p.z }, c2, 3.4 * K, 0.3); },                            // run-through
+    (p, up, c1, c2, K) => { ringFX({ x: p.x, y: GROUND + 0.1, z: p.z }, c1, 0.4, 4.4 * K, 0.4, true); debris({ x: p.x, y: GROUND + 0.4, z: p.z }, 0x5a5a66, 5); fxFlash(p, c2, 4 * K, 0.25); },   // quake
+    (p, up, c1, c2, K) => { for (let i = 0; i < 5; i++) { const a = i / 5 * Math.PI * 2 + 0.3; thrustFX({ x: p.x + Math.cos(a) * 2.6, y: p.y + Math.sin(a) * 2.6 }, p, i % 2 ? c2 : c1, 0.3 * K, 0.3); } },   // star
+    (p, up, c1, c2, K) => { dirSlash(p, -0.2, c1, 7 * K, false, 0.36); slashFX(p, true, c2); },                                                                             // great crescent
+    (p, up, c1, c2, K) => { for (let i = 0; i < 4; i++) setTimeout(() => { if (inCombat) ringFX({ x: up.x + (p.x - up.x) * (i + 1) / 4, y: GROUND + 0.1, z: up.z + (p.z - up.z) * (i + 1) / 4 }, i === 3 ? c2 : c1, 0.3, (1.4 + i * 0.7) * K, 0.3, true); }, i * 35); },   // fissure
+    (p, up, c1, c2, K) => { ringFX(p, c1, 0.3, 3.6 * K, 0.35, false); particles(p, c2, 14, { speed: 4, up: 2, grav: -4, size: 0.6 }); setTimeout(() => { if (inCombat) ringFX(p, c2, 0.3, 2.4 * K, 0.3, false); }, 90); },   // spiral burst
+    (p, up, c1, c2, K) => { projectile({ x: p.x - 1, y: p.y + 9, z: p.z }, p, c1, 0.1, 0, 1.1 * K, () => { ringFX({ x: p.x, y: GROUND + 0.1, z: p.z }, c2, 0.4, 3.6 * K, 0.35, true); fxFlash(p, c1, 4 * K, 0.25); }); },   // meteor
+    (p, up, c1, c2, K) => { dirSlash({ x: p.x - 0.9, y: p.y, z: p.z }, -0.35, c1, 4 * K, false); dirSlash({ x: p.x + 0.9, y: p.y, z: p.z }, -0.35, c2, 4 * K, true); fxFlash(p, 0xffffff, 3 * K, 0.2); },   // pincer
+    (p, up, c1, c2, K) => { for (let i = 0; i < 4; i++) setTimeout(() => { if (inCombat) slashFX(p, i === 3, i % 2 ? c2 : c1); }, i * 45); }                                // flurry
+];
+const gxColor = name => { const c = ART_COLORS[name]; return typeof c === 'string' && c[0] === '#' ? parseInt(c.slice(1), 16) : (typeof c === 'number' ? c : null); };
+function comboStrike(u, f, dmg, type, combo, i, n) {
+    const a = vis(u), h = u.home, tp = f.actor.mesh.position, S = strikeStyle(u), ranged = !u.mech && S.kind === 'arrow', now = performance.now();
+    const ci = Math.max(0, unitArts(u).indexOf(combo)), ch = gxHash(u.key + (u.mech ? '+gear' : '')), g = gxHash(combo.name + i) & 1 ? 1 : -1;
+    const mv = GX_MOVES[(ch + ci * 3 + i * 5) % 16], hit = GX_HITS[((ch >>> 4) + ci * 5 + i * 7) % 12], last = i === n - 1;
+    const dx = tp.x - h.x, dz = tp.z - h.z, Lr = Math.hypot(dx, dz) || 1, ux = dx / Lr, uz = dz / Lr;
+    const reach = ranged ? 1.1 : Math.max(0.5, Math.min(Lr - 1.6, 4.4)), K = u.mech ? 1.6 : 1, dur = 0.3;
+    if (!a.gxBusy) a.gxY0 = a.mesh.position.y;
+    const y0 = a.gxY0, tok = a.gxBusy = {};
+    u.poseUntil = now + 320;
+    if (u.mech && a.rig) a.strike = { pose: ((ch >>> 8) + ci * 7 + i * 5) % 12, t0: now, dur: 300, held: !a.rig.hlwStyle && /sword|axe|spear/.test(a.rig.style || '') };
+    const col = gxColor(combo.name) || S.c1;
+    if (mv.ghost || last) afterimage(a, col);
+    tween(dur, k => {
+        const m = mv.at(k, g), sp = m.spin || 0;
+        a.mesh.position.x = h.x + ux * reach * m.f - uz * (m.s || 0);
+        a.mesh.position.z = h.z + uz * reach * m.f + ux * (m.s || 0);
+        a.mesh.position.y = y0 + (m.y || 0) * K;
+        if (a.gear3d) { a.mesh.rotation.y = sp * Math.PI * 2 * g; a.mesh.rotation.z = m.rz || 0; }
+        else a.mesh.rotation.z = (m.rz || 0) - sp * Math.PI * 2;
+        a.blob.position.x = a.mesh.position.x; a.blob.position.z = a.mesh.position.z;
+    }, () => { if (a.gxBusy === tok) a.gxBusy = null; if (!u.ko) a.mesh.rotation.z = 0; if (a.gear3d) a.mesh.rotation.y = 0; a.mesh.position.y = y0; });
+    const bid = BID;
+    setTimeout(() => {
+        if (!live(bid) || (f.dead && !(f.okUntil > performance.now()))) return;
+        if (dmg < 0) { floatText('MISS', '#aab', FPOS(f), 1.2); return; }
+        const p = FPOS(f), up = UPOS(u), Kz = K * (1 + 0.07 * i) * (last ? 1.2 : 1);
+        hit(p, up, col, S.c2, Kz);
+        // the weapon's own signature on top
+        switch (S.kind) {
+            case 'arrow': projectile({ x: up.x + 0.6, y: up.y + 0.3, z: up.z }, p, S.c1, 0.08, i % 2 ? 1.5 : 0, 0.6); break;
+            case 'flame': particles(p, 0xff8a30, 10, { speed: 5, up: 1.4, grav: -2, size: 0.7 }); break;
+            case 'ice': particles(p, 0xcff2ff, 10, { speed: 7, size: 0.6 }); break;
+            case 'twin': dirSlash({ x: p.x + 0.4, y: p.y - 0.4, z: p.z }, 0.3, S.c2, 3 * K, true, 0.22); break;
+            case 'blunt': ringFX(p, S.c1, 0.4, 3 * K, 0.3, false); break;
+            case 'pole': thrustFX({ x: up.x + 0.8, y: p.y + 0.2 }, p, S.c1, 0.22 * K, 0.22); break;
+            case 'claw': dirSlash({ x: p.x, y: p.y + 0.5, z: p.z }, -0.35, S.c1, 2.6 * K, false, 0.2); dirSlash({ x: p.x, y: p.y - 0.5, z: p.z }, -0.35, S.c1, 2.6 * K, false, 0.2); break;
+            case 'rapier': thrustFX({ x: up.x + 0.8, y: p.y }, p, 0xffffff, 0.16 * K, 0.18); break;
+            default: fxFlash(p, 0xffffff, 2.2 * K, 0.18);
+        }
+        if (type === 4) fxFlash({ x: p.x + 1.0, y: p.y, z: p.z }, 0xb07aff, 3 * K, 0.3);
+        particles(p, S.c2, last ? 16 : 8, { speed: 7 });
+        if (last) ringFX(p, col, 0.4, 4.2 * K, 0.4, false);
+        hurtFoe(f, dmg, type === 4 ? '#d2a8ff' : '#ffffff', type === 3 ? 1.6 : 1.3);
+        triggerCameraShake(0.12 + type * 0.08 + (u.mech ? 0.3 : 0) + (type === 3 ? 0.25 : 0) + (last ? 0.2 : 0));
+        if (mv.echo) setTimeout(() => { if (live(bid) && !f.dead) { slashFX(FPOS(f), false, S.c2); f.flashUntil = performance.now() + 60; } }, (mv.echo - mv.hit) * dur * 1000);
+    }, mv.hit * dur * 1000);
+}
+const _unitHitFXGX = unitHitFX;
+unitHitFX = function (u, f, dmg, type, combo, i, n) {
+    if (!combo) return _unitHitFXGX(u, f, dmg, type);
+    try { comboStrike(u, f, dmg, type, combo, i, n); } catch (e) { console.warn('combo strike fell back', e); _unitHitFXGX(u, f, dmg, type); }
+};
 
 showTitle();
 </script>
